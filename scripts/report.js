@@ -1,0 +1,11 @@
+import { writeFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { config } from '../src/config.js';
+import { Store } from '../src/store.js';
+import { buildReport } from './research.js';
+const cfg = config(), path = join(cfg.dataDir, `${cfg.mode}.sqlite`);
+if (!existsSync(path)) throw new Error('No journal exists for the selected mode');
+const store = new Store(path), out = process.argv[2] ?? 'research-report.json';
+writeFileSync(out, JSON.stringify(buildReport(store, cfg), null, 2));
+writeFileSync(out.replace(/\.json$/, '') + '-candidates.json', JSON.stringify(store.db.prepare('SELECT data FROM candidates ORDER BY ts').all().map(x => JSON.parse(x.data)), null, 2));
+console.log(`Wrote ${out} and candidate export. Fees are estimates; see report limitations.`); store.close();

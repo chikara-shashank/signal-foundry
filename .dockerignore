@@ -1,0 +1,13 @@
+.env
+.env.*
+data
+backups
+.git
+deploy
+docs
+node_modules
+*.jsonl
+!fixtures/synthetic.jsonl
+*.zip
+*report*.json
+*.sqlite*

@@ -1,0 +1,6 @@
+region = "us-east-1"
+vpc_id = "vpc-REPLACE"
+public_subnet_id = "subnet-REPLACE"
+ssh_key_name = "YOUR-EXISTING-EC2-KEY"
+admin_ipv4_cidr = "203.0.113.10/32"
+instance_type = "t3.large"

@@ -1,0 +1,15 @@
+{
+  "name": "signal-foundry",
+  "version": "1.5.1",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.13.0 <25" },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env src/main.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "check": "node scripts/check.js",
+    "replay": "node scripts/replay.js",
+    "doctor": "node --env-file-if-exists=.env scripts/doctor.js",
+    "report": "node --env-file-if-exists=.env scripts/report.js"
+  }
+}

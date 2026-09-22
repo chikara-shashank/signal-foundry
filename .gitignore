@@ -1,0 +1,23 @@
+.env
+.env.*
+!.env.example
+data/
+backups/
+node_modules/
+*.sqlite*
+*.tfstate*
+.terraform/
+*.tfvars
+!*.tfvars.example
+coverage/
+
+# Generated bundles, logs and runtime captures
+*.zip
+*.log
+*.jsonl
+!fixtures/synthetic.jsonl
+*report*.json
+*.pem
+*.key
+.DS_Store
+Thumbs.db

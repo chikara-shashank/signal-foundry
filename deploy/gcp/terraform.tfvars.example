@@ -1,0 +1,4 @@
+project_id = "YOUR-GCP-PROJECT"
+region = "us-east1"
+zone = "us-east1-b"
+machine_type = "e2-standard-2"

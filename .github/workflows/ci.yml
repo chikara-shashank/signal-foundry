@@ -1,0 +1,20 @@
+name: validate
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.13.0
+      - run: npm run check
+      - run: npm test
+      - run: node scripts/generate-fixture.js && node scripts/replay.js fixtures/synthetic.jsonl replay-report.json
+      - run: node scripts/setup.js
+      - run: docker compose config --quiet
+      - run: docker compose up --build -d --wait --wait-timeout 120
+      - run: docker compose down
+        if: always()

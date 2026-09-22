@@ -1,0 +1,34 @@
+name: signal-foundry
+services:
+  engine:
+    build: .
+    image: signal-foundry:1.5.1
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+      DATA_DIR: /app/data
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - trading-data:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 20s
+    mem_limit: 2g
+    cpus: 2.0
+    pids_limit: 128
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+volumes:
+  trading-data:
