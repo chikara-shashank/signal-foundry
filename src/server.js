@@ -32,6 +32,7 @@ export function createDashboard(engine, cfg) {
         return stream.open(req, res, symbol, interval);
       }
       if (path === '/api/status' && req.method === 'GET') return json(200, engine.status());
+      if (path === '/api/research' && req.method === 'GET') return json(200, engine.research());
       if (path === '/api/jev-traces' && req.method === 'GET') {
         const p = new URL(req.url, 'http://localhost').searchParams;
         return json(200, jevTracePage(engine, { symbol: p.get('symbol') ?? '', limit: Number(p.get('limit') ?? 40) }));

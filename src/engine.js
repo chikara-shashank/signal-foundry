@@ -6,8 +6,9 @@ import { BAR_STRATEGIES } from './strategies.js';
 import { marketDiagnostics } from './telemetry.js';
 import { Observability } from './observability.js';
 import { Realtime } from './realtime.js';
-import { Portfolio } from './portfolio.js';
-import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar } from './util.js';
+import { Portfolio, quantityTolerance } from './portfolio.js';
+import { SignalOutcomes, tradeScorecard } from './research.js';
+import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar, quoteOrder } from './util.js';
 
 export class Engine {
   quotes = new Map(); snapshots = new Map(); features = new Features(); mutex = new Mutex();
@@ -18,6 +19,7 @@ export class Engine {
   externalDetails = { positions: [], orders: [] };
   quoteHistory = new Map();
   microstructure = new Microstructure(); quoteScans = new Map(); quoteBusy = new Set(); pairs = new Map();
+  cryptoFeatures = new Features(5); cryptoContextStatus = { state: 'warming', intervalMs: 300000 };
   constructor(cfg, store, broker, workers, clock = () => Date.now()) {
     Object.assign(this, { cfg, store, broker, workers, clock });
     this.jev = new Jev(cfg, store); this.operatorPause = store.get('operatorPause', false);
@@ -29,6 +31,7 @@ export class Engine {
     this.dailyLossLimit = store.get('dailyLossOverride', cfg.dailyLoss);
     if (!Number.isFinite(this.dailyLossLimit) || this.dailyLossLimit < 1 || this.dailyLossLimit > 100000) throw new Error('Invalid saved daily loss ceiling');
     this.portfolio = new Portfolio(this);
+    this.outcomes = new SignalOutcomes(this);
   }
   async init() {
     this.store.lease(Date.now());
@@ -42,7 +45,10 @@ export class Engine {
     this.assets = await this.broker.assets();
     for (const symbol of this.cfg.symbols) if (!this.assets.get(symbol)?.tradable) throw new Error(`Asset unavailable: ${symbol}`);
     for (const o of this.store.orders()) if (o.status === 'reserved') { o.status = 'aborted'; this.store.order(o); }
-    for (const s of this.cfg.symbols) for (const b of this.store.bars(s)) this.features.add(b, this.clock());
+    for (const s of this.cfg.symbols) for (const b of this.store.bars(s)) {
+      const f = this.features.add(b, this.clock());
+      if (f && (!isCrypto(s) || this.cfg.mode === 'demo')) this.snapshots.set(s, f);
+    }
     this.store.event('started', { mode: this.cfg.mode, fingerprint: this.cfg.fingerprint });
     await this.reconcile();
     if (this.store.get('accountPolicy') !== this.cfg.accountPolicy) {
@@ -57,8 +63,22 @@ export class Engine {
         : this.clock() - q.ts > this.cfg.maxQuoteAge ? 'stale_quote' : 'invalid_bid_ask';
       this.observability.quote(q, false, reason); return;
     }
-    if ((this.quotes.get(q.symbol)?.ts ?? 0) > q.ts) return;
+    const priorQuote = this.quotes.get(q.symbol);
+    if (priorQuote && quoteOrder(q) < quoteOrder(priorQuote)) return;
     this.quotes.set(q.symbol, q);
+    this.outcomes.quote(q, this.clock());
+    const owned = this.managed[q.symbol];
+    if (isCrypto(q.symbol) && owned && !owned.exitReason && !this.externalSymbols.has(q.symbol) && (q.bid <= owned.stop || q.bid >= owned.target) && !this.cryptoExitQueued) {
+      this.cryptoExitQueued = true;
+      void this.mutex.run(() => {
+        const current = this.managed[q.symbol];
+        if (current?.entryId === owned.entryId && !this.externalSymbols.has(q.symbol)) {
+          current.exitReason ||= q.bid <= owned.stop ? 'stop' : 'target';
+          this.store.set('managed', this.managed);
+          this.store.event('exit_trigger', { symbol: q.symbol, reason: current.exitReason, quoteTs: q.ts, bid: q.bid }, this.clock());
+        }
+      }).then(() => this.scheduleReconcile()).catch(() => this.fail('exit_trigger_failed')).finally(() => { this.cryptoExitQueued = false; });
+    }
     this.realtime.quote(q);
     this.observability.quote(q, true);
     const history = this.quoteHistory.get(q.symbol) ?? [];
@@ -69,7 +89,7 @@ export class Engine {
     this.quoteHistory.set(q.symbol, history);
     const micro = this.microstructure.add(q), now = this.clock(), base = this.snapshots.get(q.symbol);
     let scan = Promise.resolve();
-    if (micro && base && now - (base.bar.ts + 60000) < 90000 && this.cfg.strategies.includes('order_flow_continuation') &&
+    if (!isCrypto(q.symbol) && micro && base && now - (base.bar.ts + 60000) < 90000 && this.cfg.strategies.includes('order_flow_continuation') &&
         now - (this.quoteScans.get(q.symbol) ?? 0) >= this.cfg.quoteScanMs && !this.quoteBusy.has(q.symbol) && this.pendingCandidates < 100 &&
         now - (this.lastEntry[q.symbol] ?? 0) >= this.cfg.cooldown) {
       this.quoteScans.set(q.symbol, now); this.quoteBusy.add(q.symbol);
@@ -85,6 +105,9 @@ export class Engine {
     const now = this.clock(), f = this.features.add(b, now);
     if (b.ts + 60000 > now + 1000) return;
     if (!this.store.bar(b)) return;
+    // Crypto execution context comes from authoritative 5m provider bars.
+    // Minute bars remain available to charts; gaps are never forward-filled.
+    if (isCrypto(b.symbol) && this.cfg.mode !== 'demo') return;
     if (!f || warmup) return;
     this.snapshots.set(b.symbol, f);
     for (const [a, z] of [['SPY', 'QQQ'], ['BTC/USD', 'ETH/USD']]) {
@@ -98,9 +121,26 @@ export class Engine {
     if (now - (b.ts + 60000) > 10000 || this.pendingCandidates >= 100) return;
     await this.processCandidates(f, BAR_STRATEGIES);
   }
+  async onCryptoHistory(symbol, bars, warmup = true) {
+    if (!this.cfg.crypto.includes(symbol) || this.stopped) return;
+    const prior = this.snapshots.get(symbol)?.version, now = this.clock();
+    this.cryptoFeatures.history.delete(symbol);
+    let latest = null;
+    const unique = [...new Map(bars.map(b => [b.ts, b])).values()].sort((a, b) => a.ts - b.ts);
+    for (const b of unique) latest = this.cryptoFeatures.add(b, now);
+    // An actual gap or invalid latest context invalidates old approvals too.
+    if (!latest) { this.snapshots.delete(symbol); return; }
+    latest.maxHold = this.cfg.cryptoMaxHold;
+    this.snapshots.set(symbol, latest);
+    this.store.event('crypto_context', { symbol, bars: latest.count, intervalMs: latest.intervalMs, source: 'provider_5m', version: latest.version }, now);
+    if (!warmup && latest.version !== prior && now - (latest.bar.ts + 300000) <= 20000 && this.pendingCandidates < 100) await this.processCandidates(latest, BAR_STRATEGIES);
+  }
   onTrade(t) { this.realtime.trades.apply(t, this.clock()); }
   onBrokerUpdate(update) {
     this.store.event('broker_update', update, this.clock()); this.realtime.eventVersion++;
+    this.scheduleReconcile();
+  }
+  scheduleReconcile() {
     // Stream messages are observations, never order/account authority. Resolve
     // against REST through the existing mutex before changing reservations.
     if (!this.streamReconcile && !this.stopped) {
@@ -126,7 +166,9 @@ export class Engine {
         this.observability.counts.candidates++;
         this.store.event('candidate_detected', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, price: c.reference }, now);
         const preflight = await this.mutex.run(() => this.checkEntry(c));
+        c.preflight = preflight;
         c.model = await this.jev.evaluate(c, this.clock(), preflight.ok ? null : preflight.reason);
+        this.outcomes.start(c);
         if (c.model.requested) this.realtime.timings.jev.add(c.model.latencyMs);
         this.store.event('model_result', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, mode: this.cfg.jevMode,
           requested: c.model.requested === true, pass: c.model.pass, error: c.model.error ?? null, coherence: c.model.coherence ?? null,
@@ -154,6 +196,7 @@ export class Engine {
     if (paperTest && (this.cfg.mode !== 'paper' || this.cfg.brokerUrl !== 'https://paper-api.alpaca.markets')) return deny('paper_test_only');
     if (!this.ready || this.stopped || this.operatorPause) { c.blockers = [...this.issues, ...(this.operatorPause ? ['operator_pause'] : []), ...(this.stopped ? ['engine_stopped'] : [])]; return deny('entries_paused'); }
     if (this.pending().some(o => uncertain(o.status))) return deny('unresolved_order');
+    if (this.broker.entryBudgetAvailable && !this.broker.entryBudgetAvailable()) return deny('broker_request_budget');
     if (this.openOrders.some(o => o.symbol === c.symbol || o.legs?.some(l => l.symbol === c.symbol && !terminal(l.status)))) return deny('broker_orders_present');
     if (this.cfg.accountPolicy === 'shared' && this.portfolio.state.reservedSymbols.includes(c.symbol)) return deny('external_symbol_reserved');
     if (now - (this.lastEntry[c.symbol] ?? 0) < this.cfg.cooldown) return deny('symbol_cooldown');
@@ -171,7 +214,7 @@ export class Engine {
     if (!decision.ok) return this.reject(c, decision.reason);
     const now = this.clock();
     const o = { id: idFor('e', [this.cfg.mode, this.account.id, c.id]), symbol: c.symbol, kind: 'entry', candidateId: c.id, strategy: c.strategy,
-      status: 'reserved', ts: now, ...decision, feeRateBps: isCrypto(c.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, maxHold: c.maxHold ?? this.cfg.maxHold, legs: [], filledQty: 0, fillPrice: 0 };
+      status: 'reserved', ts: now, ...decision, entryDeadline: Math.min(c.expires, now + this.cfg.entryTtl), timeInForce: isCrypto(c.symbol) ? 'ioc' : 'day', feeRateBps: isCrypto(c.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, maxHold: c.maxHold ?? this.cfg.maxHold, legs: [], filledQty: 0, fillPrice: 0 };
     this.store.order(o);
     this.observability.counts.riskApproved++;
     c.status = 'approved'; c.orderId = o.id; c.allocation = decision; this.store.updateCandidate(c);
@@ -203,10 +246,11 @@ export class Engine {
     const started = performance.now();
     o.status = 'submitting'; this.store.order(o);
     try { this.merge(o, await this.broker.submit(o)); this.realtime.timings.orderAck.add(performance.now() - started); }
-    catch {
+    catch (error) {
       this.realtime.timings.orderFailure.add(performance.now() - started);
       // Even a non-2xx duplicate-ID response may refer to an accepted order.
-      o.status = 'unknown'; this.store.order(o); this.fail('unresolved_order');
+      o.status = error.notSent ? 'aborted' : 'unknown'; this.store.order(o);
+      this.fail(error.notSent ? 'broker_request_budget' : 'unresolved_order');
     }
     o.submissionLatencyMs = performance.now() - started; this.store.order(o);
     this.store.event('order', { id: o.id, symbol: o.symbol, kind: o.kind, status: o.status }, this.clock());
@@ -241,6 +285,7 @@ export class Engine {
   async reconcile() {
     return this.mutex.run(async () => {
       let now = this.clock(); this.lastLoop = Date.now(); this.store.lease(Date.now());
+      this.outcomes.sweep(now);
       try {
         const [session, open] = await Promise.all([this.broker.clock(now), this.broker.openOrders()]);
         now = this.clock();
@@ -248,7 +293,7 @@ export class Engine {
         for (const o of locals) {
           // Continue querying parent while position exists, to refresh bracket legs.
           if (terminal(o.status) && !(o.kind === 'entry' && (this.managed[o.symbol]?.entryId === o.id || (o.filledQty > 0 && !o.settledAt)))) continue;
-          const remote = await this.broker.find(o.id);
+          const remote = await this.broker.find(o.id, o.brokerId);
           if (remote) this.merge(o, remote);
           else if (!terminal(o.status)) { o.status = 'unknown'; this.store.order(o); }
         }
@@ -265,7 +310,7 @@ export class Engine {
         for (const o of locals) if (o.kind === 'entry' && o.filledQty > 0 && !o.settledAt) {
           const exited = locals.filter(x => x.kind === 'exit' && x.entryId === o.id).reduce((s, x) => s + (x.filledQty ?? 0), 0) + (o.legs ?? []).reduce((s, x) => s + (x.filledQty ?? 0), 0);
           const expected = Math.max(0, o.filledQty - exited), actual = positions.find(p => p.symbol === o.symbol)?.qty ?? 0;
-          const tolerance = isCrypto(o.symbol) ? o.filledQty * this.cfg.cryptoFee / 10000 * 1.5 + this.assets.get(o.symbol).min_trade_increment : 1e-7;
+          const tolerance = quantityTolerance(o, this.cfg, this.assets.get(o.symbol));
           if (cashCoherent && ((expected === 0 && actual === 0) || (actual > 0 && Math.abs(actual - expected) <= tolerance))) { o.settledAt = this.clock(); this.store.order(o); }
         }
         this.store.set('lastAccountSnapshot', { account, positions: this.positions, ts: now });
@@ -303,7 +348,7 @@ export class Engine {
         if (this.store.get(this.lossHaltKey(now), false)) this.issues.push('daily_loss_limit');
         this.ready = this.issues.length === 0;
         for (const o of this.pending().filter(o => o.kind === 'entry')) {
-          if (now - o.ts >= this.cfg.entryTtl || this.operatorPause || this.issues.includes('daily_loss_limit')) {
+          if (now >= (o.entryDeadline ?? o.ts + this.cfg.entryTtl) || this.operatorPause || this.issues.includes('daily_loss_limit')) {
             if (!terminal(o.status) && !uncertain(o.status) && (!o.cancelRequestedAt || now - o.cancelRequestedAt > 5000)) await this.cancel(o);
           }
         }
@@ -351,6 +396,13 @@ export class Engine {
       if (!positive(p.availableQty) || (!isCrypto(symbol) && !this.session.open)) continue;
       const qty = floorStep(Math.min(p.qty, p.availableQty), isCrypto(symbol) ? this.assets.get(symbol).min_trade_increment : 1);
       if (!positive(qty)) continue;
+      if (isCrypto(symbol) && qty < this.assets.get(symbol).min_order_size) {
+        if (!m.belowMinimum) {
+          m.belowMinimum = true; this.store.set('managed', this.managed);
+          this.store.event('exit_trigger', { symbol, reason: 'remaining_crypto_below_minimum', qty, note: 'Residual remains owned; no repeated invalid order submissions.' }, now);
+        }
+        continue;
+      }
       const attempts = all.filter(o => o.kind === 'exit' && o.entryId === m.entryId).length;
       const o = { id: idFor('x', [m.entryId, attempts]), entryId: m.entryId, symbol, kind: 'exit', qty, status: 'reserved', ts: now, reserved: 0, reason: m.exitReason, feeRateBps: isCrypto(symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, filledQty: 0, legs: [] };
       this.store.order(o); await this.submit(o);
@@ -400,10 +452,21 @@ export class Engine {
     });
   }
   lossHaltKey(now) { return `${this.cfg.accountPolicy === 'shared' ? 'agentLossHalt' : 'lossHalt'}:${nyDate(now)}`; }
+  research() {
+    const now = this.clock();
+    if (this.researchCache && now - this.researchCache.now < 10000) return this.researchCache;
+    const recent = this.store.candidates(300);
+    this.researchCache = { now, mode: this.cfg.mode, ...tradeScorecard(this.store.orders(), this.cfg), outcomes: this.outcomes.summary(),
+      crypto: { ...this.cryptoContextStatus, feePerSideBps: this.cfg.cryptoFee, maximumHoldingMs: this.cfg.cryptoMaxHold,
+        symbols: this.cfg.crypto.map(symbol => ({ symbol, bars: this.cryptoFeatures.history.get(symbol)?.length ?? 0,
+          coverage: this.snapshots.get(symbol)?.coverage ?? null,
+          contextAt: this.snapshots.get(symbol)?.bar.ts ?? null, latestDecision: recent.find(c => c.symbol === symbol) ?? null })) } };
+    return this.researchCache;
+  }
   status() {
     const now = this.clock();
     const clockBlocked = this.timebase && !this.timebase.status().synchronized;
-    return { version: '1.5.1', timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
+    return { version: '1.6.0', cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
       issues: [...new Set([...this.issues, ...(clockBlocked ? ['clock_not_synchronized'] : [])])],
       diagnostics: marketDiagnostics(this),
       reconciliation: { ...this.externalDetails, policy: this.cfg.accountPolicy, blocking: this.issues.some(x => ['external_account_activity', 'external_orders_pending', 'managed_position_conflict', 'agent_accounting_unavailable'].includes(x)), reservedSymbols: this.portfolio.state.reservedSymbols, observedAt: this.lastReconcile,
@@ -411,7 +474,7 @@ export class Engine {
       account: this.account && { equity: this.account.equity, cash: this.account.cash, buyingPower: this.account.buyingPower }, dailyPnl: this.dailyPnl ?? 0,
       positions: this.positions.map(p => ({ ...p, management: this.externalSymbols.has(p.symbol) ? null : this.managed[p.symbol] ?? null })), orders: this.store.orders().slice(-100).reverse(),
       candidates: this.store.candidates(60), events: this.store.events(40).filter(e => e.type !== 'market_sample'),
-      market: this.cfg.symbols.map(symbol => ({ symbol, quote: this.quotes.get(symbol) ?? null, bars: this.features.history.get(symbol)?.length ?? 0, features: this.snapshots.get(symbol) ?? null })),
+      market: this.cfg.symbols.map(symbol => ({ symbol, quote: this.quotes.get(symbol) ?? null, bars: (isCrypto(symbol) && this.cfg.mode !== 'demo' ? this.cryptoFeatures : this.features).history.get(symbol)?.length ?? 0, features: this.snapshots.get(symbol) ?? null })),
       workers: this.workers.status(), feeds: this.feeds, lastReconcile: this.lastReconcile, pairs: [...this.pairs.values()],
       microstructure: this.cfg.symbols.map(symbol => ({ symbol, ...this.microstructure.snapshot(symbol, now) })),
       jev: { mode: this.cfg.jevMode, model: this.cfg.jevModel, spent: this.store.spend(new Date(now).toISOString().slice(0, 7)), budget: this.cfg.jevBudget },

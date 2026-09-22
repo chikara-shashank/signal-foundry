@@ -36,7 +36,7 @@ test('broker payload uses native equity bracket and simple crypto orders', async
   await broker.submit({ id: 'e', symbol: 'SPY', kind: 'entry', qty: 1, limit: 100, stop: 98, target: 104 });
   assert.equal(requests[0].body.order_class, 'bracket'); assert.equal(requests[0].body.limit_price, '100');
   await broker.submit({ id: 'c', symbol: 'BTC/USD', kind: 'entry', qty: .001, limit: 60000 });
-  assert.equal(requests[1].body.order_class, undefined); assert.equal(requests[1].body.time_in_force, 'gtc');
+  assert.equal(requests[1].body.order_class, undefined); assert.equal(requests[1].body.time_in_force, 'ioc');
   assert.ok(requests.every(r => r.url.startsWith('https://paper-api.alpaca.markets/')));
 });
 

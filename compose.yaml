@@ -2,7 +2,7 @@ name: signal-foundry
 services:
   engine:
     build: .
-    image: signal-foundry:1.5.1
+    image: signal-foundry:1.6.0
     init: true
     restart: unless-stopped
     env_file: .env

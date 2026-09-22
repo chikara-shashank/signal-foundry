@@ -41,13 +41,16 @@ export function marketDiagnostics(engine) {
     hint: cfg.mode === 'demo' ? 'MODE=demo ignores market-data keys. Set MODE=paper with paper-account keys, then recreate the container to use real prices and simulated money.' :
       cfg.mode === 'shadow' ? 'Real quotes, local simulated fills. Use paper mode to send simulated-money orders to Alpaca.' : 'Real quotes appear independently of strategy warmup. Trading still requires a qualifying setup and all risk checks.',
     symbols: cfg.symbols.map(symbol => {
-      const quote = engine.quotes.get(symbol), context = engine.snapshots.get(symbol), count = engine.features.history.get(symbol)?.length ?? 0;
+      const crypto = isCrypto(symbol) && cfg.mode !== 'demo';
+      const quote = engine.quotes.get(symbol), context = engine.snapshots.get(symbol), count = (crypto ? engine.cryptoFeatures : engine.features).history.get(symbol)?.length ?? 0;
       const fresh = validateQuote(quote, now, cfg.maxQuoteAge), sessionOpen = isCrypto(symbol) || !!engine.session?.open;
       return { symbol, fresh, sessionOpen, quoteAgeMs: quote ? now - quote.ts : null,
         source: cfg.mode === 'demo' ? 'SYNTHETIC' : isCrypto(symbol) ? `Alpaca crypto / ${cfg.cryptoLocation}` : `Alpaca ${cfg.feed.toUpperCase()}`,
         providerTimestamp: quote?.ts ?? null,
-        warm: !!context && context.trend5 != null && context.trend15 != null && now - context.bar.ts < 150000,
-        bars: count, reason: !sessionOpen ? 'Equity session closed' : !quote ? 'Waiting for first quote' : !fresh ? 'Quote is stale' : !context || context.trend5 == null || context.trend15 == null ? `Warming strategy context (${count} contiguous bars)` : 'Scanning for setups' };
+        warm: !!context && context.trend5 != null && context.trend15 != null && now - context.bar.ts < (context.intervalMs ?? 60000) + 90000,
+        intervalMs: crypto ? 300000 : 60000,
+        coverage: context?.coverage ?? null,
+        bars: count, reason: !sessionOpen ? 'Equity session closed' : !quote ? 'Waiting for first quote' : !fresh ? 'Quote is stale' : !context || context.trend5 == null || context.trend15 == null ? `Warming strategy context (${count} ${crypto ? 'observed 5m' : 'contiguous 1m'} bars)` : `Scanning ${crypto ? '5m crypto' : '1m equity'} setups` };
     }),
   };
 }

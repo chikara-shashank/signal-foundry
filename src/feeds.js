@@ -6,7 +6,11 @@ export const parseFeedFrame = text => JSON.parse(text, (key, value, context) =>
 
 export function parseMessage(x) {
   const ts = Date.parse(x.t);
-  if (x.T === 'q') return { kind: 'quote', symbol: x.S, ts, bid: Number(x.bp), ask: Number(x.ap), bidSize: Number(x.bs), askSize: Number(x.as) };
+  if (x.T === 'q') {
+    const fraction = /\.(\d{1,9})Z$/.exec(x.t)?.[1]?.padEnd(9, '0');
+    const sequence = Number.isFinite(ts) ? String(BigInt(ts) * 1000000n + BigInt(fraction?.slice(3) ?? 0)) : undefined;
+    return { kind: 'quote', symbol: x.S, ts, sequence, bid: Number(x.bp), ask: Number(x.ap), bidSize: Number(x.bs), askSize: Number(x.as) };
+  }
   if (['t', 'c', 'x'].includes(x.T)) return { kind: x.T === 't' ? 'trade' : x.T === 'c' ? 'correction' : 'cancel', symbol: x.S, ts, stamp: x.t,
     id: x.T === 'c' ? x.ci : x.i, originalId: x.T === 'c' ? x.oi : x.i, exchange: x.x ?? '',
     price: Number(x.T === 'c' ? x.cp : x.p), size: Number(x.T === 'c' ? x.cs : x.s) };

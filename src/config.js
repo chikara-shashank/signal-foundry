@@ -30,6 +30,7 @@ export function config(env = process.env) {
     heartbeatUrl: str('HEARTBEAT_URL'),
     strategies: str('STRATEGIES', STRATEGIES.join(',')).split(',').map(s => s.trim()).filter(Boolean),
     quoteScanMs: num('QUOTE_SCAN_MS', 250, 100, 5000),
+    cryptoMaxHold: num('CRYPTO_MAX_HOLD_MINUTES', 180, 5, 1440) * 60000,
   };
   if (!['demo', 'shadow', 'paper', 'live'].includes(c.mode)) throw new Error('Invalid MODE');
   if (!['dedicated', 'shared'].includes(c.accountPolicy)) throw new Error('Invalid ACCOUNT_POLICY');

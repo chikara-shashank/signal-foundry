@@ -1,4 +1,4 @@
-import { positive } from './util.js';
+import { positive, quoteOrder } from './util.js';
 
 // Best-quote OFI; this is a feed-dependent L1 proxy, not an order-level book.
 export class Microstructure {
@@ -7,7 +7,7 @@ export class Microstructure {
     if (!positive(q.bidSize) || !positive(q.askSize)) { this.states.delete(q.symbol); return null; }
     let state = this.states.get(q.symbol) ?? { previous: null, events: [] };
     const p = state.previous;
-    if (p && q.ts <= p.ts) return this.snapshot(q.symbol, q.ts);
+    if (p && quoteOrder(q) <= quoteOrder(p)) return this.snapshot(q.symbol, Math.max(q.ts, p.ts));
     if (p && q.ts - p.ts > 5000) state = { previous: null, events: [] };
     const prev = state.previous;
     const ofi = prev ? (q.bid >= prev.bid ? q.bidSize : 0) - (q.bid <= prev.bid ? prev.bidSize : 0)

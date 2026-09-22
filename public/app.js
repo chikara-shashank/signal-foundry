@@ -56,6 +56,23 @@ function renderLivePrice(data) {
   }
 }
 let riskDirty = false, riskExpected = null, riskSaving = false, lastPerformance = 0, performanceSequence = 0, performanceScopeSet = false;
+let lastResearch = 0;
+async function refreshResearch() {
+  if (Date.now() - lastResearch < 10000) return;
+  try {
+    const r = await api('/api/research'); if (!token) return; lastResearch = Date.now();
+    $('research-state').textContent = `${r.mode.toUpperCase()} · ${new Date(r.now).toLocaleTimeString()}`;
+    $('strategy-results').innerHTML = r.strategies.map(g => `<tr><td>${escape(label(g.strategy))}<small>${escape(g.asset)}</small></td><td>${g.closed} / ${g.partial}</td><td>${g.winRate == null ? '—' : (g.winRate*100).toFixed(1)+'%'}</td><td>${money(g.grossPnl)}</td><td>${money(g.estimatedFees)}</td><td class="${g.netPnl >= 0 ? 'positive' : 'negative'}">${money(g.netPnl)}</td><td>${g.meanNetPerClosedTrade == null ? '—' : money(g.meanNetPerClosedTrade)}</td><td>${escape(label(g.evidence))}</td></tr>`).join('') || empty(8, 'No closed or partially exited agent trades yet.');
+    $('strategy-results-note').textContent = r.note;
+    $('crypto-profile').textContent = `${r.mode === 'demo' ? 'Synthetic demo; provider context inactive' : 'Crypto: provider 5m context'} · ${r.crypto.state} · ${r.crypto.feePerSideBps} bps fee per side · up to ${r.crypto.maximumHoldingMs/60000}m holding horizon. Fresh quotes, spread, cost and allocation gates still apply. OFI scalping is restricted to equities.`;
+    $('crypto-readiness').innerHTML = r.crypto.symbols.map(s => {
+      const c = s.latestDecision, x = c?.preflight?.economics;
+      return `<tr><td>${escape(s.symbol)}</td><td>${s.bars} observed 5m bars${s.coverage == null ? '' : '<small>'+(s.coverage*100).toFixed(1)+'% coverage</small>'}</td><td>${s.contextAt ? time(s.contextAt + 300000) : 'Warming up'}</td><td>${c ? escape(label(c.reason ?? c.status)) + '<small>'+time(c.ts)+'</small>' : 'No candidate yet'}</td><td>${x ? x.targetDistanceBps.toFixed(1)+' / '+x.roundTripCostBps.toFixed(1)+' bps' : 'Awaiting costed candidate'}</td><td>${x ? (x.breakEvenWinRate*100).toFixed(1)+'%' : '—'}</td></tr>`;
+    }).join('') || empty(6, 'Crypto universe is empty.');
+    $('jev-outcomes').innerHTML = r.outcomes.rows.map(g => `<tr><td>${escape(g.symbol)}<small>${escape(label(g.strategy))}</small></td><td>${g.modelPass ? 'Passed' : 'Declined / expired'}</td><td>${g.count} / ${g.missing}</td><td class="${g.meanNetBps >= 0 ? 'positive' : 'negative'}">${g.meanNetBps == null ? '—' : g.meanNetBps.toFixed(2)+' bps'}</td><td>${escape(g.fingerprint.slice(0,8))}</td></tr>`).join('') || empty(5, `Collecting forward observations · ${r.outcomes.pending} pending. No historical outcomes have been invented.`);
+    $('jev-outcomes-note').textContent = r.outcomes.note;
+  } catch { $('research-state').textContent = 'RESEARCH DATA UNAVAILABLE'; }
+}
 function renderReconciliation(s) {
   const details = s.reconciliation, shared = s.accountPolicy === 'shared', blocking = details?.blocking ?? s.issues.includes('external_account_activity');
   const visible = blocking || (shared && (details?.positions.length || details?.orders.length));
@@ -190,7 +207,7 @@ async function refresh() {
     $('events').innerHTML = s.events.slice(0, 18).map(e => `<div class="event"><time>${time(e.ts)}</time><p>${escape(label(e.type))}<small class="muted"> ${escape(e.data.reason ?? e.data.action ?? e.data.symbol ?? '')}</small></p></div>`).join('');
     $('orders').innerHTML = s.orders.map(o => `<tr><td>${time(o.ts)}</td><td>${escape(o.symbol)}</td><td>${escape(o.kind)}</td><td>${number(o.qty)} / ${number(o.filledQty)}</td><td class="${['unknown', 'submitting'].includes(o.status) ? 'amber' : ''}">${escape(label(o.status))}</td><td class="code">${escape(o.id)}</td></tr>`).join('') || empty(6, 'No order intents recorded.');
     $('updated').textContent = `Updated ${time(Date.now())} · Broker sync ${s.lastReconcile ? time(s.lastReconcile) : 'pending'}`;
-    await Promise.all([refreshChart(), refreshPerformance(), operations.refresh(s, selectedSymbol), jevLog.refresh(s)]);
+    await Promise.all([refreshChart(), refreshPerformance(), refreshResearch(), operations.refresh(s, selectedSymbol), jevLog.refresh(s)]);
   } catch (e) { $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; }
   finally { busy = false; }
 }

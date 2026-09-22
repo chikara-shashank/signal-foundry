@@ -114,4 +114,4 @@ Native equity stops can slip, and bracket children activate only after full entr
 
 ## Jev decision-mode review
 
-See [the September 22 Jev trading review](docs/JEV-TRADING-REVIEW.md) for verified filter behavior, v1.5.1 context/deadline changes, broker throughput limits, cost calculations and the evaluation plan for higher-frequency strategies.
+See [the v1.6 robustness review](docs/ROBUSTNESS-v1.6.md) for the revised five-minute crypto profile, IOC entries, request budgeting, strategy economics and forward Jev outcome measurements. The [earlier Jev review](docs/JEV-TRADING-REVIEW.md) explains the classifier's limitations. Neither release establishes profitable trading or exchange-grade HFT.

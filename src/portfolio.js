@@ -4,7 +4,7 @@ import { isCrypto, nyDate, positive, validateQuote } from './util.js';
 // No option price is converted into an equity price or an agent-owned position.
 export function relatedSymbol(symbol) { return symbol.match(/^([A-Z][A-Z0-9.]{0,5})\d{6}[CP]\d{8}$/)?.[1] ?? symbol; }
 export function quantityTolerance(entry, cfg, asset) {
-  return isCrypto(entry.symbol) ? entry.filledQty * cfg.cryptoFee / 10000 * 1.5 + (asset?.min_trade_increment ?? 1e-8) : 1e-7;
+  return isCrypto(entry.symbol) ? entry.filledQty * (entry.feeRateBps ?? cfg.cryptoFee) / 10000 * 1.5 + (asset?.min_trade_increment ?? 1e-8) : 1e-7;
 }
 
 export class Portfolio {

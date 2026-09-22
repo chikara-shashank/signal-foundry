@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { finite } from './util.js';
 import { JEV_RUBRIC, setupContext, requestWindow } from './jev-context.js';
 
-const featureKeys = new Set('symbol version barVersion bar count previous ema9 ema21 previousEma9 atr rangeHigh rangeLow relativeVolume rollingVwap vwapZ efficiency volatilityRatio priorCompression regime trend5 trend15 micro ts open close high low volume observations spanMs imbalance normalizedOfi microprice mid micropriceSkewBps returnBps source'.split(' '));
+const featureKeys = new Set('symbol version barVersion intervalMs maxHold coverage bar count previous ema9 ema21 previousEma9 atr rangeHigh rangeLow relativeVolume rollingVwap vwapZ efficiency volatilityRatio priorCompression regime trend5 trend15 micro ts open close high low volume observations spanMs imbalance normalizedOfi microprice mid micropriceSkewBps returnBps source'.split(' '));
 export function traceFeatures(value, depth = 0) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || depth > 2) return {};
   return Object.fromEntries(Object.entries(value).filter(([key]) => featureKeys.has(key)).flatMap(([key, v]) => {

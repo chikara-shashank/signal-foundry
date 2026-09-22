@@ -1,8 +1,8 @@
 export const ACTIVITY_TYPES = {
-  scans: ['scan_summary', 'quote_rejected'],
+  scans: ['scan_summary', 'quote_rejected', 'crypto_context', 'signal_outcome'],
   decisions: ['candidate_detected', 'candidate_rejected'],
   jev: ['model_result'],
-  orders: ['order_submitting', 'order', 'fill', 'cancel_pending', 'broker_update'],
+  orders: ['order_submitting', 'order', 'fill', 'cancel_pending', 'broker_update', 'exit_trigger'],
   controls: ['started', 'shutdown', 'control', 'risk_settings_changed', 'account_policy_changed', 'fault'],
 };
 export const ALL_ACTIVITY_TYPES = Object.values(ACTIVITY_TYPES).flat();
@@ -73,7 +73,7 @@ export class Observability {
     const checks = workers.reduce((sum, w) => sum + (w.evaluated ?? 0), 0);
     const model = e.jev.stats;
     const report = e.cfg.strategies.map(strategy => this.reports.get(`${symbol}:${strategy}`) ?? { symbol, strategy, ts: null, checks: [], matched: false,
-      reason: strategy === 'order_flow_continuation' ? 'Waiting for sufficient quote-size observations and fresh bar context' : 'Waiting for completed bars and strategy context' });
+      reason: strategy === 'order_flow_continuation' ? symbol.includes('/') ? 'Crypto uses five-minute bar strategies; equity OFI profile is inactive here' : 'Waiting for sufficient quote-size observations and fresh bar context' : 'Waiting for completed bars and strategy context' });
     const q = e.quotes.get(symbol), fresh = q && now - q.ts <= e.cfg.maxQuoteAge;
     const latest = e.store.candidatesForSymbol(symbol, 0, 1)[0];
     let why = e.timebase && !e.timebase.status().synchronized ? 'Provider clock calibration is not reliable. New entries are blocked until it recovers.'
@@ -104,7 +104,7 @@ export function activityPage(engine, { after = 0, category = 'all', symbol = '',
   const page = engine.store.activityPage(after, types, symbol, limit);
   const fields = new Set(['symbol', 'strategy', 'reason', 'stage', 'candidateId', 'orderId', 'id', 'kind', 'side', 'status', 'qty', 'addedQty', 'price',
     'blockers', 'passed', 'total', 'note', 'model', 'mode', 'coherence', 'quality', 'regime', 'latencyMs', 'cost', 'requested', 'pass', 'error',
-    'action', 'dailyLoss', 'previousDailyLoss', 'providerTs', 'ageMs', 'pending', 'fingerprint']);
+    'action', 'dailyLoss', 'previousDailyLoss', 'providerTs', 'ageMs', 'pending', 'fingerprint', 'bars', 'intervalMs', 'source', 'version', 'quoteTs', 'bid', 'netBps', 'hypothetical', 'state']);
   return { ...page, events: page.events.map(event => {
     const data = Object.fromEntries(Object.entries(event.data).filter(([key]) => fields.has(key)));
     if (event.data.failedCheck) data.failedCheck = Object.fromEntries(Object.entries(event.data.failedCheck).filter(([k]) => ['name', 'actual', 'operator', 'target', 'unit', 'pass'].includes(k)));

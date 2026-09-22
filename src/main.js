@@ -10,6 +10,7 @@ import { createDashboard } from './server.js';
 import { sleep } from './util.js';
 import { ProviderClock } from './provider-clock.js';
 import { AlpacaOrderFeed } from './order-feed.js';
+import { CryptoContext } from './crypto-context.js';
 
 let cfg;
 try { cfg = config(); } catch (e) { console.error(e.message); process.exit(1); }
@@ -21,6 +22,7 @@ const venue = timebase ? new AlpacaBroker(cfg, fetch, timebase) : null;
 const broker = ['demo', 'shadow'].includes(cfg.mode) ? new SimBroker(cfg, store) : venue;
 const engine = new Engine(cfg, store, broker, workers, () => cfg.mode === 'demo' ? demoTime : timebase.now());
 engine.timebase = timebase;
+const cryptoContext = cfg.mode === 'demo' ? null : new CryptoContext(engine);
 // Shadow uses real exchange session eligibility while retaining local capital.
 if (cfg.mode === 'shadow') { broker.clock = now => venue.clock(now); broker.assets = () => venue.assets(); }
 let feeds = [], server, quitting = false;
@@ -53,10 +55,12 @@ try {
     if (['paper', 'live'].includes(cfg.mode)) feeds.push(new AlpacaOrderFeed(cfg, engine));
   }
   for (const f of feeds) void f.run();
+  if (cryptoContext) void cryptoContext.poll();
   let lastBackup = 0, lastHeartbeat = 0;
   while (!quitting) {
     await sleep(5000); if (quitting) break;
     if (cfg.mode !== 'demo') await engine.reconcile();
+    if (cryptoContext) void cryptoContext.poll();
     if (cfg.heartbeatUrl && Date.now() - lastHeartbeat > 60000 && engine.healthyForHeartbeat()) {
       lastHeartbeat = Date.now();
       // An external dead-man monitor must alert when these success pings stop.

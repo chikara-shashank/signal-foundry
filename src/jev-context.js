@@ -17,7 +17,7 @@ export function setupContext(c, cfg = {}) {
   return {
     rubricVersion: JEV_RUBRIC,
     setup: setups[c.strategy] ?? 'Unrecognized setup; insufficient defined context for approval.',
-    horizon: { sourceBarsMs: 60000, candidateLifetimeMs: number(c.expires) && number(c.ts) ? Math.max(0, c.expires - c.ts) : null,
+    horizon: { sourceBarsMs: f.intervalMs ?? 60000, candidateLifetimeMs: number(c.expires) && number(c.ts) ? Math.max(0, c.expires - c.ts) : null,
       maximumHoldingMs: c.maxHold ?? cfg.maxHold ?? null, microContextMaximumAgeMs: micro ? 1000 : null },
     levels: { referenceUsd: number(c.reference) ? c.reference : null, stopUsd: number(c.stop) ? c.stop : null, targetUsd: number(c.target) ? c.target : null },
     // These are computed observations, not model-produced explanations or predictions.

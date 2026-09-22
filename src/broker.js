@@ -13,11 +13,25 @@ export function normalizeOrder(o) {
 }
 
 export class AlpacaBroker {
+  requests = []; blockedUntil = 0;
   constructor(cfg, fetchFn = fetch, timebase = null) { this.cfg = cfg; this.fetch = fetchFn; this.timebase = timebase; }
+  budgetStatus() {
+    const now = Date.now(); this.requests = this.requests.filter(t => now-t < 60000);
+    return { used: this.requests.length, limit: 180, entryThreshold: 120, blockedUntil: this.blockedUntil };
+  }
+  entryBudgetAvailable() { return this.budgetStatus().used < 120 && Date.now() >= this.blockedUntil; }
   async request(path, method = 'GET', body) {
+    // Reserve headroom for cancellations/exits; never retry a mutating request.
+    const budget = this.budgetStatus();
+    if (Date.now() < this.blockedUntil || budget.used >= (method === 'GET' ? 160 : 180)) throw Object.assign(new Error('broker_request_budget'), { notSent: true });
+    this.requests.push(Date.now());
     const r = await this.fetch(`${this.cfg.brokerUrl}${path}`, { method, redirect: 'error',
       headers: { 'APCA-API-KEY-ID': this.cfg.key, 'APCA-API-SECRET-KEY': this.cfg.secret, 'Content-Type': 'application/json' },
       ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(7000) });
+    if (r.status === 429) {
+      const raw = r.headers?.get('retry-after'), seconds = Number(raw);
+      this.blockedUntil = Date.now() + Math.min(120000, Math.max(1000, raw && Number.isFinite(seconds) ? seconds * 1000 : 60000));
+    }
     if (!r.ok) throw new BrokerError(r.status);
     return r.status === 204 ? null : r.json();
   }
@@ -40,9 +54,14 @@ export class AlpacaBroker {
   async positions() {
     return (await this.request('/v2/positions')).map(p => ({ symbol: canonical(p.symbol), qty: Number(p.qty), availableQty: Number(p.qty_available ?? p.qty), entryPrice: Number(p.avg_entry_price), marketValue: Number(p.market_value), unrealized: Number(p.unrealized_pl) }));
   }
-  async openOrders() { return (await this.request('/v2/orders?status=open&nested=true&limit=500')).map(normalizeOrder); }
-  async find(id) {
+  async openOrders() {
+    const rows = await this.request('/v2/orders?status=open&nested=true&limit=500');
+    if (!Array.isArray(rows) || rows.length >= 500) throw new Error('open_order_snapshot_incomplete');
+    return rows.map(normalizeOrder);
+  }
+  async find(id, brokerId) {
     try {
+      if (brokerId) return normalizeOrder(await this.request(`/v2/orders/${encodeURIComponent(brokerId)}?nested=true`));
       const o = await this.request(`/v2/orders:by_client_order_id?client_order_id=${encodeURIComponent(id)}`);
       return normalizeOrder(o.order_class === 'bracket' ? await this.request(`/v2/orders/${encodeURIComponent(o.id)}?nested=true`) : o);
     }
@@ -51,7 +70,7 @@ export class AlpacaBroker {
   async submit(intent) {
     const crypto = isCrypto(intent.symbol);
     const body = { symbol: intent.symbol, qty: String(intent.qty), side: intent.kind === 'entry' ? 'buy' : 'sell',
-      type: intent.kind === 'entry' ? 'limit' : 'market', time_in_force: crypto ? 'gtc' : 'day', client_order_id: intent.id };
+      type: intent.kind === 'entry' ? 'limit' : 'market', time_in_force: crypto ? intent.kind === 'entry' ? 'ioc' : 'gtc' : 'day', client_order_id: intent.id };
     if (intent.kind === 'entry') {
       body.limit_price = String(intent.limit);
       if (!crypto) Object.assign(body, { order_class: 'bracket', take_profit: { limit_price: String(intent.target) }, stop_loss: { stop_price: String(intent.stop) } });
@@ -87,9 +106,9 @@ export class SimBroker {
     this.quotes.set(q.symbol, q);
     for (const o of Object.values(this.state.orders)) {
       if (o.symbol !== q.symbol || terminal(o.status) || q.ts <= o.ts) continue;
-      if (o.kind === 'entry' && q.ts - o.ts >= this.cfg.entryTtl) { o.status = 'expired'; continue; }
+      if (o.kind === 'entry' && q.ts >= (o.entryDeadline ?? o.ts + this.cfg.entryTtl)) { o.status = 'expired'; continue; }
       const entry = o.kind === 'entry', price = (entry ? q.ask : q.bid) * (1 + (entry ? 1 : -1) * this.cfg.slippage / 10000);
-      if (entry && price > o.limit) continue;
+      if (entry && price > o.limit) { if (o.timeInForce === 'ioc') o.status = 'canceled'; continue; }
       const feeRate = (isCrypto(o.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee) / 10000;
       let qty = o.qty;
       if (entry && qty * price * (1 + feeRate) > this.state.cash) { o.status = 'rejected'; continue; }

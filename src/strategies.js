@@ -1,8 +1,8 @@
-import { idFor, positive } from './util.js';
+import { idFor, positive, isCrypto } from './util.js';
 
 export const STRATEGIES = ['range_breakout', 'trend_pullback', 'failed_breakout', 'vwap_reversion', 'volatility_expansion', 'order_flow_continuation'];
 export const BAR_STRATEGIES = STRATEGIES.filter(s => s !== 'order_flow_continuation');
-export const STRATEGY_VERSION = '1.0.0';
+export const STRATEGY_VERSION = '1.1.0';
 
 export function assess(strategy, f, now) {
   const b = f.bar, checks = [];
@@ -23,6 +23,7 @@ export function assess(strategy, f, now) {
   if (strategy === 'vwap_reversion') { check('Range regime', f.regime, '=', 'range'); check('VWAP deviation', f.vwapZ, '<', -1.5); check('Close improved', b.close, '>', f.previous.close, 'USD'); check('Green candle', b.close, '>', b.open, 'USD'); check('15m trend floor', f.trend15, '>', -.005); }
   if (strategy === 'volatility_expansion') { check('Prior compression', f.priorCompression, '<', .8); check('Volatility expansion', f.volatilityRatio, '>', 1.2); check('Volatility below shock', f.volatilityRatio, '<', 2.5); check('Close clears prior range high', b.close, '>', f.rangeHigh, 'USD'); check('Relative volume', f.relativeVolume, '>=', 1.5, 'x'); check('15m trend nonnegative', f.trend15, '>=', 0); }
   if (strategy === 'order_flow_continuation') {
+    check('Equity microstructure profile', !isCrypto(f.symbol), '=', true);
     const m = f.micro;
     check('Microstructure available', !!m, '=', true); check('Quote context age', m ? now - m.ts : null, '<=', 1000, 'ms');
     check('Quote observations', m?.observations, '>=', 20); check('Observation span', m?.spanMs, '>=', 1000, 'ms');
@@ -34,12 +35,13 @@ export function assess(strategy, f, now) {
     checks, reason: qualifies ? 'Setup conditions met' : checks.find(c => !c.pass)?.name ?? 'Unknown strategy' };
   if (!qualifies) return { candidate: null, assessment };
   const reference = strategy === 'order_flow_continuation' ? f.micro.mid : b.close;
-  const distance = Math.max(f.atr * 1.5, reference * .003);
+  // Crypto uses observed five-minute volatility, not a target inflated to pass fees.
+  const distance = isCrypto(f.symbol) ? f.atr * 1.5 : Math.max(f.atr * 1.5, reference * .003);
   const candidate = {
     id: idFor('c', [strategy, STRATEGY_VERSION, f.symbol, f.version]), strategy, version: STRATEGY_VERSION,
     symbol: f.symbol, ts: now, expires: now + (strategy === 'order_flow_continuation' ? 2000 : 10000), reference,
     stop: reference - distance, target: strategy === 'vwap_reversion' ? f.rollingVwap : reference + 2 * distance,
-    maxHold: strategy === 'order_flow_continuation' ? 180000 : null,
+    maxHold: strategy === 'order_flow_continuation' ? 180000 : f.maxHold ?? null,
     priority: Math.min(f.relativeVolume, 5), features: f, status: 'discovered',
   };
   return { candidate, assessment: { ...assessment, candidateId: candidate.id } };

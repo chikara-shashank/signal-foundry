@@ -21,12 +21,15 @@ export function sizeEntry(c, q, account, positions, pending, cfg, asset, now, se
   if (![limit, stop, target].every(positive) || !(stop < q.bid && target > limit)) return deny('invalid_bracket');
   const fee = crypto ? cfg.cryptoFee : cfg.equityFee;
   const costPerUnit = limit * (2 * (fee + cfg.slippage) + spread) / 10000;
-  if (target - limit < 2 * costPerUnit) return deny('reward_does_not_clear_cost_buffer');
+  const economics = { spreadBps: spread, feePerSideBps: fee, roundTripCostBps: 2 * (fee + cfg.slippage) + spread,
+    targetDistanceBps: (target / limit - 1) * 10000, netRewardRisk: (target - limit - costPerUnit) / (limit - stop + costPerUnit),
+    breakEvenWinRate: (limit - stop + costPerUnit) / (target - stop) };
+  if (target - limit < 2 * costPerUnit) return { ...deny('reward_does_not_clear_cost_buffer'), economics };
   const gross = positions.reduce((s, p) => s + Math.abs(p.marketValue), 0);
   const reserved = pending.filter(o => o.kind === 'entry').reduce((s, o) => s + o.reserved, 0);
   const group = positions.filter(p => isCrypto(p.symbol) === crypto).reduce((s, p) => s + Math.abs(p.marketValue), 0) + pending.filter(o => o.kind === 'entry' && isCrypto(o.symbol) === crypto).reduce((s, o) => s + o.reserved, 0);
   const capacity = Math.min(cfg.maxPosition, cfg.maxGross - gross - reserved, cfg.maxGroup - group, cfg.capital - gross - reserved, account.cash - reserved, account.buyingPower - reserved);
   const qty = floorStep(Math.min(cfg.risk / (limit - stop + costPerUnit), capacity / (limit * (1 + fee / 10000))), crypto ? asset.min_trade_increment : 1);
   if (!positive(qty) || qty < (crypto ? asset.min_order_size : 1)) return deny('insufficient_capacity_or_lot_size');
-  return { ok: true, qty, limit, stop, target, reserved: qty * limit * (1 + fee / 10000), estimatedRoundTripCost: costPerUnit * qty, riskAtStop: (limit - stop + costPerUnit) * qty };
+  return { ok: true, qty, limit, stop, target, economics, reserved: qty * limit * (1 + fee / 10000), estimatedRoundTripCost: costPerUnit * qty, riskAtStop: (limit - stop + costPerUnit) * qty };
 }
