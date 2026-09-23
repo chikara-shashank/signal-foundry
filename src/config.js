@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { hash } from './util.js';
-import { STRATEGIES } from './strategies.js';
+import { STRATEGIES, SESSION_STRATEGIES } from './strategies.js';
 
 export function config(env = process.env) {
   const str = (k, d = '') => (env[k] ?? d).trim();
@@ -31,6 +31,9 @@ export function config(env = process.env) {
     strategies: str('STRATEGIES', STRATEGIES.join(',')).split(',').map(s => s.trim()).filter(Boolean),
     quoteScanMs: num('QUOTE_SCAN_MS', 250, 100, 5000),
     cryptoMaxHold: num('CRYPTO_MAX_HOLD_MINUTES', 180, 5, 1440) * 60000,
+    // Noise-area session strategy: one symbol, fixed notional, far protective stop (software exits do the work).
+    noiseSymbol: str('NOISE_AREA_SYMBOL', 'QQQ'), noiseNotional: num('NOISE_AREA_NOTIONAL_USD', 1500, 1, 100000),
+    noiseStopBps: num('NOISE_AREA_STOP_BPS', 150, 20, 1000),
   };
   if (!['demo', 'shadow', 'paper', 'live'].includes(c.mode)) throw new Error('Invalid MODE');
   if (!['dedicated', 'shared'].includes(c.accountPolicy)) throw new Error('Invalid ACCOUNT_POLICY');
@@ -40,7 +43,12 @@ export function config(env = process.env) {
   if (c.token.length < 32 || c.token.startsWith('replace-')) throw new Error('Set a random DASHBOARD_TOKEN of at least 32 characters (see README)');
   if (!c.equities.every(s => /^[A-Z][A-Z0-9.]{0,9}$/.test(s)) || !c.crypto.every(s => ['BTC/USD', 'ETH/USD'].includes(s))) throw new Error('Invalid symbol universe');
   if (!c.equities.length && !c.crypto.length) throw new Error('Empty universe');
-  if (!c.strategies.length || new Set(c.strategies).size !== c.strategies.length || !c.strategies.every(s => STRATEGIES.includes(s))) throw new Error('Invalid STRATEGIES');
+  if (!c.strategies.length || new Set(c.strategies).size !== c.strategies.length || !c.strategies.every(s => STRATEGIES.includes(s) || SESSION_STRATEGIES.includes(s))) throw new Error('Invalid STRATEGIES');
+  if (c.strategies.includes('noise_area')) {
+    if (c.mode === 'demo') throw new Error('noise_area needs provider sessions and history; use shadow, paper or live');
+    if (!c.equities.includes(c.noiseSymbol)) throw new Error('NOISE_AREA_SYMBOL must be listed in EQUITY_SYMBOLS');
+    if (c.noiseNotional > c.maxGroup || c.noiseNotional > c.maxGross) throw new Error('NOISE_AREA_NOTIONAL_USD exceeds MAX_GROUP_USD or MAX_GROSS_USD');
+  }
   if (c.equities.length > (c.feed === 'iex' ? 30 : 100)) throw new Error('Universe exceeds configured feed limit');
   if (c.mode !== 'demo' && (!c.key || !c.secret)) throw new Error('ALPACA_KEY and ALPACA_SECRET required');
   if (c.jevMode !== 'off' && !c.jevKey) throw new Error('TYPESAFE_API_KEY required for Jev');

@@ -1,4 +1,4 @@
-import { canonical, isCrypto, round, terminal } from './util.js';
+import { canonical, isCrypto, nyTimestamp, round, terminal } from './util.js';
 
 export class BrokerError extends Error {
   constructor(status) { super(`broker_http_${status}`); this.status = status; }
@@ -50,6 +50,11 @@ export class AlpacaBroker {
     const classes = [...(this.cfg.equities.length ? ['us_equity'] : []), ...(this.cfg.crypto.length ? ['crypto'] : [])];
     const all = (await Promise.all(classes.map(c => this.request(`/v2/assets?status=active&asset_class=${c}`)))).flat();
     return new Map(all.map(a => [canonical(a.symbol), { tradable: a.tradable, min_order_size: Number(a.min_order_size ?? 1), min_trade_increment: Number(a.min_trade_increment ?? 1), price_increment: Number(a.price_increment ?? .01) }]));
+  }
+  // Trading sessions with their actual open and close, including early closes.
+  async calendar(start, end) {
+    const rows = await this.request(`/v2/calendar?start=${start}&end=${end}`);
+    return rows.map(r => ({ date: r.date, open: nyTimestamp(r.date, r.open), close: nyTimestamp(r.date, r.close) }));
   }
   async positions() {
     return (await this.request('/v2/positions')).map(p => ({ symbol: canonical(p.symbol), qty: Number(p.qty), availableQty: Number(p.qty_available ?? p.qty), entryPrice: Number(p.avg_entry_price), marketValue: Number(p.market_value), unrealized: Number(p.unrealized_pl) }));

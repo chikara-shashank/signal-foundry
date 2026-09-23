@@ -6,6 +6,13 @@ export const finite = x => typeof x === 'number' && Number.isFinite(x);
 export const positive = x => finite(x) && x > 0;
 export const round = (x, n = 8) => Number(x.toFixed(n));
 export const utc = t => new Date(t).toISOString();
+// UTC epoch ms of a New York wall-clock time such as ('2026-09-22', '09:30').
+export function nyTimestamp(date, hhmm) {
+  const [h, m] = hhmm.split(':').map(Number), [y, mo, d] = date.split('-').map(Number), guess = Date.UTC(y, mo - 1, d, h, m);
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit' }).formatToParts(new Date(guess));
+  const local = Number(parts.find(p => p.type === 'hour').value) % 24 * 60 + Number(parts.find(p => p.type === 'minute').value);
+  return guess + ((h * 60 + m - local + 1440 + 720) % 1440 - 720) * 60000;
+}
 export const nyDate = t => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
 export const isCrypto = symbol => symbol.includes('/');
 export const canonical = symbol => symbol === 'BTCUSD' ? 'BTC/USD' : symbol === 'ETHUSD' ? 'ETH/USD' : symbol;

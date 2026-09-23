@@ -15,7 +15,7 @@ export function parseMessage(x) {
     id: x.T === 'c' ? x.ci : x.i, originalId: x.T === 'c' ? x.oi : x.i, exchange: x.x ?? '',
     price: Number(x.T === 'c' ? x.cp : x.p), size: Number(x.T === 'c' ? x.cs : x.s) };
   if (x.T === 'b') {
-    const b = { kind: 'bar', symbol: x.S, ts, open: Number(x.o), high: Number(x.h), low: Number(x.l), close: Number(x.c), volume: Number(x.v) };
+    const b = { kind: 'bar', symbol: x.S, ts, open: Number(x.o), high: Number(x.h), low: Number(x.l), close: Number(x.c), volume: Number(x.v), ...(typeof x.vw === 'number' && Number.isFinite(x.vw) ? { vwap: x.vw } : {}) };
     return validBar(b) ? b : null;
   }
   return null;

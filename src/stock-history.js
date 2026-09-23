@@ -5,10 +5,11 @@ import { validBar } from './util.js';
 export class StockHistory {
   inflight = new Map(); pausedUntil = 0;
   constructor(engine, fetchFn = fetch) { this.engine = engine; this.fetch = fetchFn; }
-  async bars(symbols, start, end) {
-    const { cfg } = this.engine, out = new Map(symbols.map(s => [s, []])); let token = null;
+  async bars(symbols, start, end, timeframe = '1Min') {
+    const { cfg } = this.engine, out = new Map(symbols.map(s => [s, []])), interval = { '1Min': 60000, '30Min': 1800000 }[timeframe]; let token = null;
+    if (!interval) throw new Error('stock_history_timeframe');
     for (let page = 0; page < 10; page++) {
-      const query = new URLSearchParams({ symbols: symbols.join(','), timeframe: '1Min', start: new Date(start).toISOString(), end: new Date(end - 1).toISOString(),
+      const query = new URLSearchParams({ symbols: symbols.join(','), timeframe, start: new Date(start).toISOString(), end: new Date(end - 1).toISOString(),
         feed: cfg.feed, adjustment: 'raw', limit: '10000', sort: 'asc' });
       if (token) query.set('page_token', token);
       const r = await this.fetch(`https://data.alpaca.markets/v2/stocks/bars?${query}`, {
@@ -20,8 +21,8 @@ export class StockHistory {
       for (const [symbol, rows] of Object.entries(body.bars ?? {})) {
         if (!out.has(symbol) || !Array.isArray(rows)) throw new Error('stock_history_invalid');
         for (const x of rows) {
-          const b = { kind: 'bar', symbol, ts: Date.parse(x.t), open: x.o, high: x.h, low: x.l, close: x.c, volume: x.v };
-          if (!validBar(b) || b.ts < start || b.ts + 60000 > end) throw new Error('stock_history_invalid');
+          const b = { kind: 'bar', symbol, ts: Date.parse(x.t), open: x.o, high: x.h, low: x.l, close: x.c, volume: x.v, ...(Number.isFinite(x.vw) ? { vwap: x.vw } : {}) };
+          if (!validBar(b) || b.ts < start || b.ts + interval > end) throw new Error('stock_history_invalid');
           out.get(symbol).push(b);
         }
       }

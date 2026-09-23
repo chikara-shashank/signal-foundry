@@ -2,6 +2,8 @@ import { idFor, positive, isCrypto } from './util.js';
 
 export const STRATEGIES = ['range_breakout', 'trend_pullback', 'failed_breakout', 'vwap_reversion', 'volatility_expansion', 'order_flow_continuation'];
 export const BAR_STRATEGIES = STRATEGIES.filter(s => s !== 'order_flow_continuation');
+// Stateful session strategies run in the engine thread, not in the per-bar workers.
+export const SESSION_STRATEGIES = ['noise_area'];
 export const STRATEGY_VERSION = '1.1.0';
 
 export function assess(strategy, f, now) {

@@ -2,7 +2,7 @@ import { Features } from './features.js';
 import { sizeEntry } from './risk.js';
 import { Jev } from './jev.js';
 import { Microstructure, relativeValue } from './microstructure.js';
-import { BAR_STRATEGIES } from './strategies.js';
+import { BAR_STRATEGIES, SESSION_STRATEGIES } from './strategies.js';
 import { marketDiagnostics } from './telemetry.js';
 import { Observability } from './observability.js';
 import { Realtime } from './realtime.js';
@@ -109,6 +109,7 @@ export class Engine {
     // Crypto execution context comes from authoritative 5m provider bars.
     // Minute bars remain available to charts; gaps are never forward-filled.
     if (isCrypto(b.symbol) && this.cfg.mode !== 'demo') return;
+    if (!warmup && b.symbol === this.noiseArea?.symbol) await this.noiseArea.onBar(b);
     if (!f || warmup) return;
     this.snapshots.set(b.symbol, f);
     for (const [a, z] of [['SPY', 'QQQ'], ['BTC/USD', 'ETH/USD']]) {
@@ -128,7 +129,7 @@ export class Engine {
     for (const b of [...bars].sort((x, y) => x.ts - y.ts)) {
       const last = this.features.history.get(symbol)?.at(-1)?.ts;
       if (b.symbol !== symbol || !validBar(b) || (Number.isFinite(last) && b.ts <= last) || b.ts + 60000 > this.clock() + 1000) continue;
-      f = this.features.add(b, this.clock()); this.store.bar(b); restored++;
+      f = this.features.add(b, this.clock()); this.store.bar(b); this.noiseArea?.addBar(b); restored++;
     }
     if (snapshot && restored && f) this.snapshots.set(symbol, f);
     return restored;
@@ -193,6 +194,19 @@ export class Engine {
     } catch { this.fail('strategy_worker_failure'); }
     finally { this.pendingCandidates--; }
   }
+  // Engine-thread session strategies share every entry check with the bar strategies.
+  // Jev is not consulted: its rubric defines no setup for them.
+  async submitCandidate(c) {
+    c.config = this.cfg.fingerprint;
+    if (!this.store.candidate(c)) return;
+    this.observability.counts.candidates++;
+    this.store.event('candidate_detected', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, price: c.reference }, this.clock());
+    const preflight = await this.mutex.run(() => this.checkEntry(c));
+    c.preflight = preflight; c.model = { mode: 'not_applicable', requested: false, pass: true };
+    this.realtime.eventVersion++;
+    if (!preflight.ok) return this.reject(c, preflight.reason);
+    await this.mutex.run(() => this.enter(c));
+  }
   reject(c, reason) { c.status = 'rejected'; c.reason = reason; this.store.updateCandidate(c); this.observability.rejected(c); }
   fail(reason, error) { this.ready = false; this.issues = [...new Set([...this.issues, reason])]; this.store.event('fault', { reason, ...(error ? { detail: faultDetail(error) } : {}) }, this.clock()); }
   pending() { return this.store.orders().filter(o => !terminal(o.status) || (o.kind === 'entry' && o.filledQty > 0 && !o.settledAt)); }
@@ -212,7 +226,7 @@ export class Engine {
     if (this.openOrders.some(o => o.symbol === c.symbol || o.legs?.some(l => l.symbol === c.symbol && !terminal(l.status)))) return deny('broker_orders_present');
     if (this.cfg.accountPolicy === 'shared' && this.portfolio.state.reservedSymbols.includes(c.symbol)) return deny('external_symbol_reserved');
     if (now - (this.lastEntry[c.symbol] ?? 0) < this.cfg.cooldown) return deny('symbol_cooldown');
-    if (!paperTest && this.snapshots.get(c.symbol)?.version !== (c.features.barVersion ?? c.features.version)) return deny('superseded_snapshot');
+    if (!paperTest && !SESSION_STRATEGIES.includes(c.strategy) && this.snapshots.get(c.symbol)?.version !== (c.features.barVersion ?? c.features.version)) return deny('superseded_snapshot');
     if (c.strategy === 'order_flow_continuation' && now - c.features.micro.ts > 1000) return deny('microstructure_signal_expired');
     const riskConfig = paperTest ? { ...this.cfg, maxPosition: Math.min(this.cfg.maxPosition, isCrypto(c.symbol) ? 25 : c.reference * 1.02) } : this.cfg;
     const shared = this.cfg.accountPolicy === 'shared';
@@ -478,7 +492,7 @@ export class Engine {
   status() {
     const now = this.clock();
     const clockBlocked = this.timebase && !this.timebase.status().synchronized;
-    return { version: '1.6.1', cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
+    return { version: '1.7.0', cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
       issues: [...new Set([...this.issues, ...(clockBlocked ? ['clock_not_synchronized'] : [])])],
       diagnostics: marketDiagnostics(this),
       reconciliation: { ...this.externalDetails, policy: this.cfg.accountPolicy, blocking: this.issues.some(x => ['external_account_activity', 'external_orders_pending', 'managed_position_conflict', 'agent_accounting_unavailable'].includes(x)), reservedSymbols: this.portfolio.state.reservedSymbols, observedAt: this.lastReconcile,
@@ -487,7 +501,7 @@ export class Engine {
       positions: this.positions.map(p => ({ ...p, management: this.externalSymbols.has(p.symbol) ? null : this.managed[p.symbol] ?? null })), orders: this.store.orders().slice(-100).reverse(),
       candidates: this.store.candidates(60), events: this.store.events(40).filter(e => e.type !== 'market_sample'),
       market: this.cfg.symbols.map(symbol => ({ symbol, quote: this.quotes.get(symbol) ?? null, bars: (isCrypto(symbol) && this.cfg.mode !== 'demo' ? this.cryptoFeatures : this.features).history.get(symbol)?.length ?? 0, features: this.snapshots.get(symbol) ?? null })),
-      workers: this.workers.status(), feeds: this.feeds, lastReconcile: this.lastReconcile, pairs: [...this.pairs.values()],
+      workers: this.workers.status(), noiseArea: this.noiseArea?.status() ?? null, feeds: this.feeds, lastReconcile: this.lastReconcile, pairs: [...this.pairs.values()],
       microstructure: this.cfg.symbols.map(symbol => ({ symbol, ...this.microstructure.snapshot(symbol, now) })),
       jev: { mode: this.cfg.jevMode, model: this.cfg.jevModel, spent: this.store.spend(new Date(now).toISOString().slice(0, 7)), budget: this.cfg.jevBudget },
       limits: { scope: this.cfg.accountPolicy === 'shared' ? 'agent' : 'account', capital: this.cfg.capital, maxGross: this.cfg.maxGross, maxPosition: this.cfg.maxPosition, maxPositions: this.cfg.maxPositions === 0 ? null : this.cfg.maxPositions, dailyLoss: this.dailyLossLimit,

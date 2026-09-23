@@ -28,8 +28,13 @@ export function sizeEntry(c, q, account, positions, pending, cfg, asset, now, se
   const gross = positions.reduce((s, p) => s + Math.abs(p.marketValue), 0);
   const reserved = pending.filter(o => o.kind === 'entry').reduce((s, o) => s + o.reserved, 0);
   const group = positions.filter(p => isCrypto(p.symbol) === crypto).reduce((s, p) => s + Math.abs(p.marketValue), 0) + pending.filter(o => o.kind === 'entry' && isCrypto(o.symbol) === crypto).reduce((s, o) => s + o.reserved, 0);
-  const capacity = Math.min(cfg.maxPosition, cfg.maxGross - gross - reserved, cfg.maxGroup - group, cfg.capital - gross - reserved, account.cash - reserved, account.buyingPower - reserved);
-  const qty = floorStep(Math.min(cfg.risk / (limit - stop + costPerUnit), capacity / (limit * (1 + fee / 10000))), crypto ? asset.min_trade_increment : 1);
+  // Other strategies leave the session strategy's notional free while it is flat, so it is never crowded out.
+  const noiseFlat = cfg.strategies?.includes('noise_area') && !positions.some(p => p.symbol === cfg.noiseSymbol) && !pending.some(o => o.symbol === cfg.noiseSymbol);
+  const headroom = noiseFlat && c.strategy !== 'noise_area' ? cfg.noiseNotional : 0;
+  const capacity = Math.min(c.sizing?.notional ?? cfg.maxPosition, cfg.maxGross - gross - reserved - headroom, cfg.maxGroup - group - (crypto ? 0 : headroom), cfg.capital - gross - reserved - headroom, account.cash - reserved, account.buyingPower - reserved);
+  // Fixed-notional sizing when the strategy's exits are not a fixed stop distance; otherwise the per-trade stop-risk budget.
+  const units = capacity / (limit * (1 + fee / 10000));
+  const qty = floorStep(c.sizing ? units : Math.min(cfg.risk / (limit - stop + costPerUnit), units), crypto ? asset.min_trade_increment : 1);
   if (!positive(qty) || qty < (crypto ? asset.min_order_size : 1)) return deny('insufficient_capacity_or_lot_size');
   return { ok: true, qty, limit, stop, target, economics, reserved: qty * limit * (1 + fee / 10000), estimatedRoundTripCost: costPerUnit * qty, riskAtStop: (limit - stop + costPerUnit) * qty };
 }

@@ -12,11 +12,13 @@ import { ProviderClock } from './provider-clock.js';
 import { AlpacaOrderFeed } from './order-feed.js';
 import { CryptoContext } from './crypto-context.js';
 import { StockHistory } from './stock-history.js';
+import { NoiseArea } from './noise-area.js';
+import { STRATEGIES } from './strategies.js';
 
 let cfg;
 try { cfg = config(); } catch (e) { console.error(e.message); process.exit(1); }
 const store = new Store(join(cfg.dataDir, `${cfg.mode}.sqlite`));
-const workers = new Workers(cfg.strategies);
+const workers = new Workers(cfg.strategies.filter(s => STRATEGIES.includes(s)));
 let demoTime = Math.max(Date.now(), store.get('demoClock', 0));
 const timebase = cfg.mode === 'demo' ? null : new ProviderClock();
 const venue = timebase ? new AlpacaBroker(cfg, fetch, timebase) : null;
@@ -25,6 +27,7 @@ const engine = new Engine(cfg, store, broker, workers, () => cfg.mode === 'demo'
 engine.timebase = timebase;
 const cryptoContext = cfg.mode === 'demo' ? null : new CryptoContext(engine);
 if (cfg.mode !== 'demo') engine.stockHistory = new StockHistory(engine);
+if (cfg.strategies.includes('noise_area')) engine.noiseArea = new NoiseArea(engine, venue, engine.stockHistory);
 // Shadow uses real exchange session eligibility while retaining local capital.
 if (cfg.mode === 'shadow') { broker.clock = now => venue.clock(now); broker.assets = () => venue.assets(); }
 let feeds = [], server, quitting = false;
@@ -64,6 +67,7 @@ try {
   while (!quitting) {
     await sleep(5000); if (quitting) break;
     if (cfg.mode !== 'demo') await engine.reconcile();
+    if (engine.noiseArea) await engine.noiseArea.tick(engine.clock()).catch(() => engine.fail('noise_area_failure'));
     if (cryptoContext) void cryptoContext.poll();
     if (cfg.heartbeatUrl && Date.now() - lastHeartbeat > 60000 && engine.healthyForHeartbeat()) {
       lastHeartbeat = Date.now();

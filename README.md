@@ -114,6 +114,22 @@ Live mode requires `MODE=live`, live Alpaca credentials, the exact `EXPECTED_ACC
 
 Native equity stops can slip, and bracket children activate only after full entry fill. Crypto exits depend on this service, current market data for price triggers, and connectivity. A single VM is not highly available. Pausing new entries preserves position management; stopping the container does not close positions.
 
+## Noise-area session strategy (v1.7)
+
+Adding `noise_area` to `STRATEGIES` enables a long-only version of the noise-area breakout, the only published intraday rule that stayed positive after realistic costs in [the September 2026 tests](docs/INTRADAY-RESEARCH-2026-09.md) (QQQ: +3.4 bps per trade over 10.7 years).
+
+How it works:
+- Each session it loads the trading calendar and 14 prior sessions of 30-minute bars for `NOISE_AREA_SYMBOL`.
+- At every :00 and :30 from 10:00 to 30 minutes before the close, it buys above the upper band and exits at the first check below max(upper band, session VWAP).
+- Positions use a fixed `NOISE_AREA_NOTIONAL_USD`. The bar strategies leave that amount free while it is flat.
+- A far `NOISE_AREA_STOP_BPS` bracket stop protects against outages. The normal session-end exit flattens anything left.
+- Every check is recorded as a `noise_area_decision` event and shown in the strategy checklist.
+
+Known gaps:
+- Short signals are recorded but not traded, because the engine cannot hold agent short positions yet.
+- Jev is not consulted for this strategy.
+- In `shared` accounts an external holding in the symbol or its options reserves it, and the strategy then records `external_symbol_reserved` instead of trading.
+
 ## Jev decision-mode review
 
 See [the v1.6 robustness review](docs/ROBUSTNESS-v1.6.md) for the revised five-minute crypto profile, IOC entries, request budgeting, strategy economics and forward Jev outcome measurements. The [earlier Jev review](docs/JEV-TRADING-REVIEW.md) explains the classifier's limitations. Neither release establishes profitable trading or exchange-grade HFT.
