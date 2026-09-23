@@ -6,6 +6,8 @@ The six strategies are explicit hypotheses. Their parameters and Jev rubric have
 
 `npm run backtest -- --from YYYY-MM-DD --to YYYY-MM-DD --split YYYY-MM-DD` runs the bar strategies over Alpaca historical bars with the live gates and costs, choosing each exit variant in-sample and reporting it out-of-sample. See [the September 2026 results](BACKTEST-2026-09.md): no strategy met the promotion rule.
 
+`scripts/intraday-research.js` tests published intraday strategies (last-half-hour momentum, noise-area breakout, 5-minute and stocks-in-play opening range breakouts) with their papers' rules. See [the September 2026 intraday results](INTRADAY-RESEARCH-2026-09.md): only the QQQ noise-area breakout was positive after realistic costs.
+
 ## Replay
 
 `fixtures/synthetic.jsonl` is a deterministic artificial market. Run:
