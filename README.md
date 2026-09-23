@@ -64,7 +64,7 @@ docker compose up -d --force-recreate
 
 Doctor performs read-only credential/account checks; it does not send an order. In paper mode the application sends simulated-money orders to Alpaca. For real market data with **no broker orders**, use `MODE=shadow`.
 
-Expect roughly 30–45 minutes of continuous bars before all feature contexts are ready after a cold start or gap. No historical backfill is silently substituted. Stocks follow the broker's regular-market clock, including early closes; spot crypto runs continuously. The process remains up across weekends.
+Since v1.6.1, equity minute bars are restored at startup (last 150 minutes) and short intraday stream gaps (up to 30 minutes) are repaired from Alpaca's historical bars for the same feed before continuity is checked. Every restore is recorded as a `bar_backfill` event; minutes without trades stay absent and nothing is interpolated. If historical bars are unavailable, expect roughly 30–45 minutes of continuous streamed bars before feature contexts are ready. Feed disconnects are recorded as `feed_disconnect` events, and reconnect backoff resets after a healthy session. Stocks follow the broker's regular-market clock, including early closes; spot crypto runs continuously. The process remains up across weekends.
 
 ## Included
 

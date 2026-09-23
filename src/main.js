@@ -11,6 +11,7 @@ import { sleep } from './util.js';
 import { ProviderClock } from './provider-clock.js';
 import { AlpacaOrderFeed } from './order-feed.js';
 import { CryptoContext } from './crypto-context.js';
+import { StockHistory } from './stock-history.js';
 
 let cfg;
 try { cfg = config(); } catch (e) { console.error(e.message); process.exit(1); }
@@ -23,6 +24,7 @@ const broker = ['demo', 'shadow'].includes(cfg.mode) ? new SimBroker(cfg, store)
 const engine = new Engine(cfg, store, broker, workers, () => cfg.mode === 'demo' ? demoTime : timebase.now());
 engine.timebase = timebase;
 const cryptoContext = cfg.mode === 'demo' ? null : new CryptoContext(engine);
+if (cfg.mode !== 'demo') engine.stockHistory = new StockHistory(engine);
 // Shadow uses real exchange session eligibility while retaining local capital.
 if (cfg.mode === 'shadow') { broker.clock = now => venue.clock(now); broker.assets = () => venue.assets(); }
 let feeds = [], server, quitting = false;
@@ -45,6 +47,8 @@ try {
   // Bootstrap before restoring historical bars or stamping account state.
   if (venue) await venue.clock(timebase.now());
   await engine.init();
+  // Restore recent provider minute bars before streaming so a restart is not blind for 30+ minutes.
+  await engine.stockHistory?.warmup();
   server = createDashboard(engine, cfg);
   await new Promise((resolve, reject) => { server.once('error', reject); server.listen(cfg.port, cfg.host, resolve); });
   console.log(JSON.stringify({ service: 'Signal Foundry', mode: cfg.mode, dashboard: `http://localhost:${cfg.port}`, token: 'read DASHBOARD_TOKEN in your .env', data: cfg.dataDir }));

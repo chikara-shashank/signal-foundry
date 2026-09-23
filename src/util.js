@@ -13,6 +13,12 @@ export function quoteOrder(q) { return typeof q.sequence === 'string' && /^\d{19
 export const terminal = status => ['filled', 'canceled', 'expired', 'rejected', 'aborted'].includes(status);
 export const uncertain = status => ['submitting', 'unknown'].includes(status);
 export const idFor = (kind, key) => `sf-${kind}-${hash(key).slice(0, 32)}`;
+// Credential-free error classification for fault events: codes and names, never URLs or bodies.
+export function faultDetail(error) {
+  const message = String(error?.message ?? ''), code = error?.cause?.code ?? error?.code;
+  const label = /^[\w.:-]{1,64}$/.test(message) ? message : /^\w{1,40}$/.test(error?.name ?? '') ? error.name : 'Error';
+  return typeof code === 'string' && /^[A-Z0-9_]{1,40}$/.test(code) ? `${label}:${code}` : label;
+}
 
 // Portfolio mutations share this queue. An error does not poison future work.
 export class Mutex {

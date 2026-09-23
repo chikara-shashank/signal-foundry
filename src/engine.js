@@ -8,7 +8,7 @@ import { Observability } from './observability.js';
 import { Realtime } from './realtime.js';
 import { Portfolio, quantityTolerance } from './portfolio.js';
 import { SignalOutcomes, tradeScorecard } from './research.js';
-import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar, quoteOrder } from './util.js';
+import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar, quoteOrder, faultDetail } from './util.js';
 
 export class Engine {
   quotes = new Map(); snapshots = new Map(); features = new Features(); mutex = new Mutex();
@@ -102,6 +102,7 @@ export class Engine {
   }
   async onBar(b, warmup = false) {
     if (!validBar(b)) return;
+    if (!warmup && this.stockHistory && !isCrypto(b.symbol)) await this.stockHistory.repair(b);
     const now = this.clock(), f = this.features.add(b, now);
     if (b.ts + 60000 > now + 1000) return;
     if (!this.store.bar(b)) return;
@@ -120,6 +121,17 @@ export class Engine {
     this.store.event('market_sample', { bar: b, quote: this.quotes.get(b.symbol) ?? null }, now);
     if (now - (b.ts + 60000) > 10000 || this.pendingCandidates >= 100) return;
     await this.processCandidates(f, BAR_STRATEGIES);
+  }
+  // Completed provider bars restored in order, before the next streamed bar for the symbol.
+  backfill(symbol, bars, snapshot) {
+    let f = null, restored = 0;
+    for (const b of [...bars].sort((x, y) => x.ts - y.ts)) {
+      const last = this.features.history.get(symbol)?.at(-1)?.ts;
+      if (b.symbol !== symbol || !validBar(b) || (Number.isFinite(last) && b.ts <= last) || b.ts + 60000 > this.clock() + 1000) continue;
+      f = this.features.add(b, this.clock()); this.store.bar(b); restored++;
+    }
+    if (snapshot && restored && f) this.snapshots.set(symbol, f);
+    return restored;
   }
   async onCryptoHistory(symbol, bars, warmup = true) {
     if (!this.cfg.crypto.includes(symbol) || this.stopped) return;
@@ -146,7 +158,7 @@ export class Engine {
     if (!this.streamReconcile && !this.stopped) {
       this.streamReconcile = setTimeout(async () => {
         try { if (!this.stopped) await this.reconcile(); }
-        catch { this.fail('broker_reconciliation_failed'); }
+        catch (error) { this.fail('broker_reconciliation_failed', error); }
         finally { this.streamReconcile = null; }
       }, 250);
       this.streamReconcile.unref();
@@ -182,7 +194,7 @@ export class Engine {
     finally { this.pendingCandidates--; }
   }
   reject(c, reason) { c.status = 'rejected'; c.reason = reason; this.store.updateCandidate(c); this.observability.rejected(c); }
-  fail(reason) { this.ready = false; this.issues = [...new Set([...this.issues, reason])]; this.store.event('fault', { reason }, this.clock()); }
+  fail(reason, error) { this.ready = false; this.issues = [...new Set([...this.issues, reason])]; this.store.event('fault', { reason, ...(error ? { detail: faultDetail(error) } : {}) }, this.clock()); }
   pending() { return this.store.orders().filter(o => !terminal(o.status) || (o.kind === 'entry' && o.filledQty > 0 && !o.settledAt)); }
   cashFlow(orders) {
     return orders.reduce((total, o) => total + (o.kind === 'entry' ? -1 : 1) * (o.filledQty ?? 0) * (o.fillPrice ?? 0) +
@@ -361,8 +373,8 @@ export class Engine {
           this.store.event('agent_equity', { dailyPnl: book.dailyPnl, unrealized: book.unrealized, observedAt: account.ts }, now);
           this.lastEquityRecord = now;
         }
-      } catch {
-        this.fail('broker_reconciliation_failed'); this.lastLoop = Date.now();
+      } catch (error) {
+        this.fail('broker_reconciliation_failed', error); this.lastLoop = Date.now();
       }
     });
   }
@@ -466,7 +478,7 @@ export class Engine {
   status() {
     const now = this.clock();
     const clockBlocked = this.timebase && !this.timebase.status().synchronized;
-    return { version: '1.6.0', cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
+    return { version: '1.6.1', cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
       issues: [...new Set([...this.issues, ...(clockBlocked ? ['clock_not_synchronized'] : [])])],
       diagnostics: marketDiagnostics(this),
       reconciliation: { ...this.externalDetails, policy: this.cfg.accountPolicy, blocking: this.issues.some(x => ['external_account_activity', 'external_orders_pending', 'managed_position_conflict', 'agent_accounting_unavailable'].includes(x)), reservedSymbols: this.portfolio.state.reservedSymbols, observedAt: this.lastReconcile,

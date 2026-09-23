@@ -21,25 +21,35 @@ export function parseMessage(x) {
   return null;
 }
 
+export const reconnectDelay = failures => Math.min(60000, 1000 * 2 ** Math.min(failures, 6));
+
 export class AlpacaFeed {
-  stopped = false; socket = null; timer = null;
-  constructor(name, url, symbols, cfg, engine, Socket = WebSocket) { Object.assign(this, { name, url, symbols, cfg, engine, Socket }); }
+  stopped = false; socket = null; timer = null; streamedAt = 0; reconnects = 0; now = () => Date.now();
+  constructor(name, url, symbols, cfg, engine, Socket = WebSocket, wait = sleep) { Object.assign(this, { name, url, symbols, cfg, engine, Socket, wait }); }
   async run() {
     let failures = 0;
     while (!this.stopped) {
+      const started = this.now();
       try { await this.connect(); } catch { /* Status contains a sanitized reason. */ }
       if (this.stopped) break;
-      failures++; const delay = Math.min(60000, 1000 * 2 ** Math.min(failures, 6)) + Math.random() * 500;
-      this.engine.feeds[this.name] = { ...this.engine.feeds[this.name], status: 'reconnecting', retryMs: Math.round(delay) };
-      await sleep(delay);
+      // Only consecutive failures escalate. A session that streamed for 30s restarts
+      // the backoff; otherwise every later disconnect waited ~60s and lost minute bars.
+      const streamedMs = this.streamedAt >= started ? this.now() - this.streamedAt : 0;
+      failures = streamedMs >= 30000 ? 1 : failures + 1;
+      const delay = reconnectDelay(failures) + Math.random() * 500, reason = this.sessionError ?? `closed_${this.closeCode ?? 'unknown'}`;
+      this.reconnects++;
+      this.engine.feeds[this.name] = { ...this.engine.feeds[this.name], status: 'reconnecting', retryMs: Math.round(delay), reconnects: this.reconnects };
+      this.engine.store?.event('feed_disconnect', { feed: this.name, reason, streamedMs: Math.round(streamedMs), retryMs: Math.round(delay), reconnects: this.reconnects }, this.engine.clock());
+      await this.wait(delay);
     }
   }
   connect() {
     return new Promise((resolve, reject) => {
       const ws = this.socket = new this.Socket(this.url); let authenticated = false, settled = false, lastData = Date.now();
+      this.sessionError = null; this.closeCode = null;
       this.engine.feeds[this.name] = { ...this.engine.feeds[this.name], status: 'connecting' };
       const fail = reason => {
-        if (settled) return; settled = true; clearInterval(this.timer); ws.close();
+        if (settled) return; settled = true; this.sessionError = reason; clearInterval(this.timer); ws.close();
         this.engine.feeds[this.name] = { status: reason, lastError: reason, errorAt: Date.now() }; reject(new Error(reason));
       };
       const authDeadline = Date.now() + 15000;
@@ -61,13 +71,14 @@ export class AlpacaFeed {
             if (x.T === 'subscription') {
               if (!this.symbols.every(s => x.bars?.includes(s) && x.quotes?.includes(s) && x.trades?.includes(s))) return fail('incomplete_subscription');
               this.engine.realtime.trades.connected(this.symbols, this.engine.clock());
-              this.engine.feeds[this.name] = { status: 'streaming', lastMessage: Date.now() };
+              this.streamedAt = this.now();
+              this.engine.feeds[this.name] = { status: 'streaming', lastMessage: Date.now(), reconnects: this.reconnects };
             }
             const item = parseMessage(x);
             if (!item || !authenticated || !this.symbols.includes(item.symbol)) continue;
             lastData = Date.now();
             this.engine.feeds[this.name] = { ...this.engine.feeds[this.name], status: 'streaming', lastMessage: Date.now(),
-              providerTimestamp: item.ts, providerAgeMs: this.engine.clock() - item.ts, hostAgeMs: Date.now() - item.ts, lastKind: item.kind };
+              providerTimestamp: item.ts, providerAgeMs: this.engine.clock() - item.ts, hostAgeMs: Date.now() - item.ts, lastKind: item.kind, reconnects: this.reconnects };
             if (item.kind === 'quote') this.engine.onQuote(item);
             else if (item.kind === 'bar') void this.engine.onBar(item).catch(() => this.engine.fail('bar_processing_error'));
             else this.engine.onTrade(item);
@@ -75,7 +86,9 @@ export class AlpacaFeed {
         } catch { fail('feed_parse_error'); }
       });
       ws.addEventListener('error', () => fail('connection_error'));
-      ws.addEventListener('close', () => { if (!settled) { settled = true; clearInterval(this.timer); resolve(); } });
+      ws.addEventListener('close', event => {
+        if (!settled) { settled = true; clearInterval(this.timer); this.closeCode = Number.isInteger(event?.code) ? event.code : null; resolve(); }
+      });
     });
   }
   stop() { this.stopped = true; clearInterval(this.timer); this.socket?.close(); }
