@@ -102,6 +102,7 @@ npm run report -- research-report.json
 - [Operations and live-mode runbook](docs/RUNBOOK.md)
 - [AWS and GCP deployment](docs/CLOUD.md)
 - [Research and promotion protocol](docs/RESEARCH.md)
+- [Walk-forward backtest, September 2026](docs/BACKTEST-2026-09.md)
 - [Quant strategies, HFT capability boundaries, and current research](docs/QUANT_STRATEGIES.md)
 - [Verification and remaining checks](docs/VERIFICATION.md)
 - [Provider references](docs/SOURCES.md)

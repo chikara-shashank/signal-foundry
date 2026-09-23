@@ -9,6 +9,7 @@
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "check": "node scripts/check.js",
     "replay": "node scripts/replay.js",
+    "backtest": "node --env-file-if-exists=.env scripts/backtest.js",
     "doctor": "node --env-file-if-exists=.env scripts/doctor.js",
     "report": "node --env-file-if-exists=.env scripts/report.js"
   }

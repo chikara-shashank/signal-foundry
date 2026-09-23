@@ -2,6 +2,10 @@
 
 The six strategies are explicit hypotheses. Their parameters and Jev rubric have not been fitted, calibrated, or shown profitable. Technical tests demonstrate software behavior, not alpha. See QUANT_STRATEGIES.md for data requirements and papers reviewed.
 
+## Historical backtest
+
+`npm run backtest -- --from YYYY-MM-DD --to YYYY-MM-DD --split YYYY-MM-DD` runs the bar strategies over Alpaca historical bars with the live gates and costs, choosing each exit variant in-sample and reporting it out-of-sample. See [the September 2026 results](BACKTEST-2026-09.md): no strategy met the promotion rule.
+
 ## Replay
 
 `fixtures/synthetic.jsonl` is a deterministic artificial market. Run:
