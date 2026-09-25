@@ -1,4 +1,5 @@
 import { hash, terminal } from './util.js';
+import { campaignEntries, remainingQty } from './position-book.js';
 
 export function executionExceptions(orders) {
   const rows = [];
@@ -38,8 +39,8 @@ export function protectionHealth(engine) {
   const now = Date.now(), stale = !engine.protection.observedAt || now - engine.protection.observedAt > 30000;
   const orders = new Map(engine.store.orders().map(o => [o.id,o]));
   const positions = Object.entries(engine.managed).map(([symbol, m]) => {
-    const parent = orders.get(m.entryId);
-    const native = parent?.legs?.some(l => ['stop','stop_limit'].includes(l.type) && !terminal(l.status) && !['held','pending_new'].includes(l.status));
+    const lots=campaignEntries([...orders.values()],m.entryId).filter(o=>remainingQty([...orders.values()],o)>1e-8);
+    const native = lots.length>0 && lots.every(o=>o.legs?.some(l => ['stop','stop_limit'].includes(l.type) && !terminal(l.status) && !['held','pending_new'].includes(l.status)));
     return { symbol, entryId: m.entryId, exitReason: m.exitReason ?? null,
       protection: engine.externalSymbols.has(symbol) ? 'ownership_incident' : native ? 'broker_stop' : 'software_only' };
   });

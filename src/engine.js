@@ -15,6 +15,8 @@ import { strategyManifest, qualification } from './strategy-manifest.js';
 import { Accounting } from './accounting.js';
 import { RELEASE } from './release.js';
 import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
+import { additionPolicy, additionCandidate, checkAddition, observeCampaign } from './pyramiding.js';
+import { campaignId, campaignEntries, campaignQty, remainingQty } from './position-book.js';
 import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar, quoteOrder, faultDetail } from './util.js';
 
 export class Engine {
@@ -29,6 +31,7 @@ export class Engine {
   cryptoFeatures = new Features(5); cryptoContextStatus = { state: 'warming', intervalMs: 300000 };
   cryptoExitQueued = new Set(); orderRefreshAt = new Map(); dirtyOrderSymbols = new Set();
   exitEntries = new Map();
+  campaignBooks = new Map();
   protection = { state: 'starting', observedAt: 0, reason: null };
   constructor(cfg, store, broker, workers, clock = () => Date.now()) {
     Object.assign(this, { cfg, store, broker, workers, clock });
@@ -93,11 +96,13 @@ export class Engine {
       const entry = this.exitEntries.get(owned.entryId) ?? this.store.getOrder(owned.entryId);
       if (entry) {
         this.exitEntries.set(entry.id, entry);
-        const beforeArmed = owned.excursion?.armedAt, reason = observeBreakout(owned, entry, q, this.clock(), this.positions.find(p=>p.symbol===q.symbol)?.qty ?? entry.filledQty);
-        if (owned.excursion && (!owned.excursion.persistedAt || this.clock() - owned.excursion.persistedAt >= 1000 || beforeArmed !== owned.excursion.armedAt || reason)) {
+        const beforeArmed = owned.excursion?.armedAt, beforeAddFloor=owned.addFloor, reason = observeBreakout(owned, entry, q, this.clock(), this.positions.find(p=>p.symbol===q.symbol)?.qty ?? entry.filledQty);
+        observeCampaign(this,owned,entry,q);
+        if (owned.excursion && (!owned.excursion.persistedAt || this.clock() - owned.excursion.persistedAt >= 1000 || beforeArmed !== owned.excursion.armedAt || beforeAddFloor!==owned.addFloor || reason)) {
           this.store.assertLease(); owned.excursion.persistedAt = this.clock();
           this.store.set('managed', this.managed);
           entry.excursion = { ...owned.excursion }; this.store.order(entry);
+          if (owned.campaignExcursion) { entry.campaignExcursion={...owned.campaignExcursion}; this.store.order(entry); }
         }
         if (reason) this.latchExit(q.symbol, owned.entryId, reason, { quoteTs: q.ts, bid: q.bid, floor: owned.excursion?.floor });
       }
@@ -164,6 +169,8 @@ export class Engine {
     }
     this.store.event('market_sample', { bar: b, quote: this.quotes.get(b.symbol) ?? null }, now);
     if (now - (b.ts + 60000) > 10000 || this.pendingCandidates >= 100) return;
+    const addition=additionCandidate(this,f);
+    if(addition)await this.submitCandidate(addition);
     await this.processCandidates(f, BAR_STRATEGIES);
   }
   // Completed provider bars restored in order, before the next streamed bar for the symbol.
@@ -267,6 +274,7 @@ export class Engine {
     c.preflight = preflight; c.model = { mode: 'not_applicable', requested: false, pass: true };
     this.realtime.eventVersion++;
     if (!preflight.ok) return this.reject(c, preflight.reason);
+    if(c.addition && this.cfg.jevMode==='filter')return this.reject(c,'addition_model_filter_not_validated');
     await this.mutex.run(() => this.enter(c));
   }
   reject(c, reason) { c.status = 'rejected'; c.reason = reason; this.store.updateCandidate(c); this.observability.rejected(c); }
@@ -290,7 +298,11 @@ export class Engine {
     if (!this.ready || this.stopped || this.operatorPause) { c.blockers = [...this.issues, ...(this.operatorPause ? ['operator_pause'] : []), ...(this.stopped ? ['engine_stopped'] : [])]; return deny('entries_paused'); }
     if (this.pending().some(o => uncertain(o.status))) return deny('unresolved_order');
     if (this.broker.entryBudgetAvailable && !this.broker.entryBudgetAvailable()) return deny('broker_request_budget');
-    if (this.openOrders.some(o => o.symbol === c.symbol || o.legs?.some(l => l.symbol === c.symbol && !terminal(l.status)))) return deny('broker_orders_present');
+    const addition=c.addition ? checkAddition(this,c) : null;
+    if(addition && !addition.ok)return addition;
+    const ownedLegs=addition ? new Set(campaignEntries(this.store.orders(),addition.rootId).flatMap(o=>(o.legs??[]).map(l=>l.brokerId))) : new Set();
+    const rootBrokerId=addition ? this.store.getOrder(addition.rootId)?.brokerId : null;
+    if (this.openOrders.some(o => (o.symbol === c.symbol && !ownedLegs.has(o.brokerId) && !(rootBrokerId && o.brokerId===rootBrokerId && o.status==='filled')) || o.legs?.some(l => l.symbol === c.symbol && !terminal(l.status) && !ownedLegs.has(l.brokerId)))) return deny('broker_orders_present');
     if (this.cfg.accountPolicy === 'shared' && this.portfolio.state.reservedSymbols.includes(c.symbol)) return deny('external_symbol_reserved');
     if (now - (this.lastEntry[c.symbol] ?? 0) < this.cfg.cooldown) return deny('symbol_cooldown');
     if (!paperTest && !SESSION_STRATEGIES.includes(c.strategy) && this.snapshots.get(c.symbol)?.version !== (c.features.barVersion ?? c.features.version)) return deny('superseded_snapshot');
@@ -298,7 +310,8 @@ export class Engine {
     const riskConfig = { ...this.cfg, strategies: this.strategyControls.enabledIds(), noiseReservationEligible: this.noiseReservation().eligible, ...(paperTest ? { maxPosition: Math.min(this.cfg.maxPosition, isCrypto(c.symbol) ? 25 : c.reference * 1.02) } : {}) };
     const shared = this.cfg.accountPolicy === 'shared';
     const riskAccount = shared ? { ...this.account, cash: Math.min(this.account.cash, this.portfolio.state.cashAvailable) } : this.account;
-    const decision = sizeEntry(c, this.quotes.get(c.symbol), riskAccount, shared ? this.portfolio.positions : this.positions, this.pending(), riskConfig, this.assets.get(c.symbol), now, this.session);
+    const decision = sizeEntry(addition ? {...c,stop:addition.stop,target:addition.target} : c, this.quotes.get(c.symbol), riskAccount, shared ? this.portfolio.positions : this.positions, this.pending(), riskConfig, this.assets.get(c.symbol), now, this.session, addition);
+    if(addition && decision.ok)decision.additionPlan=addition;
     return decision;
   }
   async enter(c) {
@@ -307,7 +320,8 @@ export class Engine {
     if (!decision.ok) return this.reject(c, decision.reason);
     const now = this.clock();
     const o = { id: idFor('e', [this.cfg.mode, this.account.id, c.id]), symbol: c.symbol, kind: 'entry', candidateId: c.id, strategy: c.strategy,
-      experiment: strategyManifest(this, c.strategy),
+      experiment: c.addition ? this.store.getOrder(c.campaignId).experiment : strategyManifest(this, c.strategy),
+      ...(c.addition ? {campaignId:c.campaignId,addition:true} : {addPolicy:isCrypto(c.symbol)?null:additionPolicy(this,c.strategy)}),
       exitPolicy: breakoutPolicy(c, this.cfg), discovery: this.universe?.selection(c.symbol) ?? null,
       status: 'reserved', ts: now, ...decision, entryDeadline: Math.min(c.expires, now + this.cfg.entryTtl), timeInForce: isCrypto(c.symbol) ? 'ioc' : 'day', feeRateBps: isCrypto(c.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, maxHold: c.maxHold ?? this.cfg.maxHold, legs: [], filledQty: 0, fillPrice: 0 };
     this.store.order(o);
@@ -366,15 +380,23 @@ export class Engine {
     }
     if (local.filledQty > priorFill && local.kind === 'entry') {
       delete local.settledAt;
-      const previous = this.managed[local.symbol]?.entryId === local.id ? this.managed[local.symbol] : {};
-      this.managed[local.symbol] = { ...previous, entryId: local.id, strategy: local.strategy, stop: local.stop, target: local.target, maxHold: local.maxHold ?? this.cfg.maxHold, openedAt: previous.openedAt ?? local.filledAt ?? local.lastFillObservedAt ?? local.ts, exitReason: previous.exitReason ?? (local.exitAfterFill ? 'operator_flatten' : null) };
+      const rootId=campaignId(local), root=local.addition ? this.store.getOrder(rootId) : local;
+      const previous = this.managed[local.symbol]?.entryId === rootId ? this.managed[local.symbol] : {};
+      if(!root || (local.addition && (!root.addPolicy || root.symbol!==local.symbol || root.strategy!==local.strategy)))throw new Error('Invalid addition ownership');
+      this.managed[local.symbol] = { ...previous, entryId: rootId, strategy: root.strategy, stop: root.stop, target: root.target, maxHold: root.maxHold ?? this.cfg.maxHold, openedAt: previous.openedAt ?? root.filledAt ?? root.lastFillObservedAt ?? root.ts, exitReason: previous.exitReason ?? (local.exitAfterFill ? 'operator_flatten' : null),
+        ...(local.addition ? {addFloor:Math.max(previous.addFloor ?? root.stop,local.stop),additionEntryId:local.id} : {}) };
       this.store.set('managed', this.managed);
     }
     if(local.kind==='entry') {
       const managed=this.managed[local.symbol];
-      if(managed?.entryId===local.id){if(managed.excursion)local.excursion={...managed.excursion};if(managed.exitReason)local.exitReason=managed.exitReason;this.exitEntries.set(local.id,local);}
+      if(managed?.entryId===campaignId(local)){if(!local.addition && managed.excursion)local.excursion={...managed.excursion};if(!local.addition && managed.campaignExcursion)local.campaignExcursion={...managed.campaignExcursion};if(managed.exitReason)local.exitReason=managed.exitReason;this.exitEntries.set(local.id,local);}
     }
     this.store.order(local);
+    const entry=local.kind==='entry'?local:this.exitEntries.get(local.entryId) ?? this.store.getOrder(local.entryId);
+    if(entry && (entry.addPolicy || entry.addition)) {
+      const rootId=campaignId(entry), book=this.campaignBooks.get(rootId) ?? [];
+      this.campaignBooks.set(rootId,[...book.filter(o=>o.id!==local.id),local]);
+    }
     this.realtime.eventVersion++;
   }
   async cancel(o) {
@@ -395,10 +417,9 @@ export class Engine {
         for (const row of open) { observed.set(row.brokerId, row); for (const leg of row.legs ?? []) observed.set(leg.brokerId, leg); }
         for (const o of locals) {
           // Continue querying parent while position exists, to refresh bracket legs.
-          if (terminal(o.status) && !(o.kind === 'entry' && (this.managed[o.symbol]?.entryId === o.id || (o.filledQty > 0 && !o.settledAt)))) continue;
+          if (terminal(o.status) && !(o.kind === 'entry' && (this.managed[o.symbol]?.entryId === campaignId(o) || (o.filledQty > 0 && !o.settledAt)))) continue;
           const snapshot = o.brokerId ? observed.get(o.brokerId) : null;
-          const exits = locals.filter(x => x.kind === 'exit' && x.entryId === o.id).reduce((s, x) => s + (x.filledQty ?? 0), 0) + (o.legs ?? []).reduce((s, x) => s + (x.filledQty ?? 0), 0);
-          const changedQuantity = o.kind === 'entry' && Math.abs((positions.find(p => p.symbol === o.symbol)?.qty ?? 0) - ((o.filledQty ?? 0) - exits)) > 1e-8;
+          const changedQuantity = o.kind === 'entry' && Math.abs((positions.find(p => p.symbol === o.symbol)?.qty ?? 0) - campaignQty(locals,campaignId(o))) > 1e-8;
           const activeLegsMissing = (o.legs ?? []).some(l => !terminal(l.status) && !observed.has(l.brokerId));
           const urgent = !terminal(o.status) || !o.settledAt || changedQuantity || activeLegsMissing || this.dirtyOrderSymbols.has(o.symbol) || this.managed[o.symbol]?.exitReason;
           // Stable parents are refreshed every 30s. Broker notifications, quantity
@@ -422,8 +443,7 @@ export class Engine {
         const shared = this.cfg.accountPolicy === 'shared';
         const cashCoherent = shared ? Number.isFinite(account.cash) : Number.isFinite(cashUpperBound) && account.cash <= cashUpperBound + .02;
         for (const o of locals) if (o.kind === 'entry' && o.filledQty > 0 && !o.settledAt) {
-          const exited = locals.filter(x => x.kind === 'exit' && x.entryId === o.id).reduce((s, x) => s + (x.filledQty ?? 0), 0) + (o.legs ?? []).reduce((s, x) => s + (x.filledQty ?? 0), 0);
-          const expected = Math.max(0, o.filledQty - exited), actual = positions.find(p => p.symbol === o.symbol)?.qty ?? 0;
+          const expected = Math.max(0, campaignQty(locals,campaignId(o))), actual = positions.find(p => p.symbol === o.symbol)?.qty ?? 0;
           const tolerance = quantityTolerance(o, this.cfg, this.assets.get(o.symbol));
           if (cashCoherent && ((expected === 0 && actual === 0) || (actual > 0 && Math.abs(actual - expected) <= tolerance))) { o.settledAt = this.clock(); this.store.order(o); }
         }
@@ -432,6 +452,11 @@ export class Engine {
         const unmatchedOrders = open.filter(o => !ownIds.has(o.id) && !locals.some(x => x.legs?.some(l => l.brokerId === o.brokerId)));
         const externalOrders = unmatchedOrders.length > 0;
         const book = this.portfolio.refresh(positions, this.store.orders(), account, now);
+        const campaignOrders=this.store.orders();
+        for(const managed of Object.values(this.managed)) {
+          const lots=campaignEntries(campaignOrders,managed.entryId);
+          if(lots[0]?.addPolicy) { const ids=new Set(lots.map(o=>o.id));this.campaignBooks.set(managed.entryId,[...lots,...campaignOrders.filter(o=>o.kind==='exit' && ids.has(o.entryId))]); }
+        }
         const incidents = updateIncidents(this, book, this.store.orders(), positions, now);
         const ownedSymbols = new Set(this.portfolio.positions.map(p => p.symbol));
         this.externalSymbols = new Set(positions.filter(p => !ownedSymbols.has(p.symbol)).map(p => p.symbol));
@@ -466,6 +491,7 @@ export class Engine {
         this.ready = this.issues.length === 0;
         this.accounting.observeDay(now);
         for (const o of this.pending().filter(o => o.kind === 'entry')) {
+          if(o.addition && !this.strategyControls.additionsEnabled(o.strategy) && !terminal(o.status)) { o.entryDisableRequested=true; this.store.order(o); }
           if (o.strategy !== 'operator_paper_test' && !this.strategyControls.enabled(o.strategy) && !terminal(o.status) && o.filledQty < o.qty && !o.entryDisableRequested) {
             o.entryDisableRequested = true; this.store.order(o);
           }
@@ -495,30 +521,40 @@ export class Engine {
     for (const [symbol, m] of Object.entries(this.managed)) {
       if (this.externalSymbols.has(symbol)) continue;
       const p = this.positions.find(p => p.symbol === symbol), parent = all.find(o => o.id === m.entryId);
+      const lots=campaignEntries(all,m.entryId), adding=lots.length>1;
       if (!p) {
-        if (parent && terminal(parent.status) && (!parent.filledQty || parent.settledAt)) { this.exitEntries.delete(m.entryId); delete this.managed[symbol]; this.store.set('managed', this.managed); }
+        // A parent exit can beat a pending addition. Cancel it and keep ownership
+        // until every submitted entry is terminal; a late buy remains managed.
+        for(const lot of lots.filter(o=>!terminal(o.status) && !uncertain(o.status)))await this.cancel(lot);
+        if (parent && lots.every(o=>terminal(o.status) && (!o.filledQty || o.settledAt))) { for(const lot of lots)this.exitEntries.delete(lot.id); this.campaignBooks.delete(m.entryId); delete this.managed[symbol]; this.store.set('managed', this.managed); }
         continue;
       }
       const q = this.quotes.get(symbol), fresh = validateQuote(q, now, this.cfg.maxQuoteAge);
-      const native = parent?.legs?.filter(l => !terminal(l.status)) ?? [];
+      const native = lots.flatMap(o=>o.legs ?? []).filter(l => !terminal(l.status));
       const activeStop = native.some(l => ['stop', 'stop_limit'].includes(l.type) && !['held', 'pending_new'].includes(l.status));
       if (this.issues.includes('daily_loss_limit')) m.exitReason = 'daily_loss_limit';
-      if (parent && ['canceled', 'expired', 'rejected'].includes(parent.status)) m.exitReason ||= 'partial_entry_canceled';
+      if (lots.some(o=>o.filledQty>0 && ['canceled', 'expired', 'rejected'].includes(o.status))) m.exitReason ||= 'partial_entry_canceled';
+      if (adding && lots.some(o=>remainingQty(all,o)<o.filledQty))m.exitReason ||= 'campaign_lot_exit';
       if (!isCrypto(symbol) && this.session.open && this.session.close - now < 5 * 60000) m.exitReason ||= 'session_end';
       if (now - m.openedAt > m.maxHold) m.exitReason ||= 'holding_time';
       if (fresh && q.bid <= m.stop && !activeStop) m.exitReason ||= 'stop';
+      if (fresh && m.addFloor && q.bid<=m.addFloor)m.exitReason ||= 'addition_profit_protection';
       if (fresh && q.bid >= m.target && !native.some(l => l.type === 'limit')) m.exitReason ||= 'target';
       if (!m.exitReason) continue;
       this.store.set('managed', this.managed);
       if (this.pending().some(o => o.symbol === symbol && o.kind === 'exit')) continue;
-      if (parent && !terminal(parent.status)) { await this.cancel(parent); continue; }
+      const unfinished=lots.filter(o=>!terminal(o.status));
+      if (unfinished.length) { for(const lot of unfinished)if(!uncertain(lot.status))await this.cancel(lot); continue; }
       if (native.length) {
         for (const leg of native) { this.store.assertLease(); try { await this.broker.cancel(leg); } catch { /* Reconcile before another attempt. */ } }
         continue;
       }
       // If positions report reserved shares, wait for cancellation settlement.
       if (!positive(p.availableQty) || (!isCrypto(symbol) && !this.session.open)) continue;
-      const qty = floorStep(Math.min(p.qty, p.availableQty), isCrypto(symbol) ? this.assets.get(symbol).min_trade_increment : 1);
+      // Allocate each exit to its broker lot. Only one market exit is outstanding
+      // for a symbol; refresh broker quantities before selling the next lot.
+      const exitLot=lots.find(o=>remainingQty(all,o)>1e-8); if(!exitLot)continue;
+      const qty = floorStep(Math.min(p.qty, p.availableQty, remainingQty(all,exitLot)), isCrypto(symbol) ? this.assets.get(symbol).min_trade_increment : 1);
       if (!positive(qty)) continue;
       if (isCrypto(symbol) && qty < this.assets.get(symbol).min_order_size) {
         if (!m.belowMinimum) {
@@ -527,8 +563,8 @@ export class Engine {
         }
         continue;
       }
-      const attempts = all.filter(o => o.kind === 'exit' && o.entryId === m.entryId).length;
-      const o = { id: idFor('x', [m.entryId, attempts]), entryId: m.entryId, symbol, kind: 'exit', qty, status: 'reserved', ts: now, reserved: 0, reason: m.exitReason, feeRateBps: isCrypto(symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, filledQty: 0, legs: [] };
+      const attempts = all.filter(o => o.kind === 'exit' && o.entryId === exitLot.id).length;
+      const o = { id: idFor('x', [exitLot.id, attempts]), entryId: exitLot.id, symbol, kind: 'exit', qty, status: 'reserved', ts: now, reserved: 0, reason: m.exitReason, feeRateBps: isCrypto(symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, filledQty: 0, legs: [] };
       this.store.order(o); await this.submit(o);
     }
   }

@@ -7,6 +7,7 @@ import { NoiseArea } from './noise-area.js';
 import { hash, nyDate, isCrypto, terminal, floorStep } from './util.js';
 import { RELEASE } from './release.js';
 import { buildReport } from '../scripts/research.js';
+import { supportsAdditions } from './pyramiding.js';
 
 export class ReplayBroker extends SimBroker {
   constructor(cfg,store,calendar,now,{latencyMs=1000,participation=.1}={}) {
@@ -58,6 +59,10 @@ export async function replayEngine(tape,calendar,settings={},execution={}) {
   }))});
   try{
     await engine.init();
+    for(const strategy of execution.addToWinners ?? []) {
+      if(!supportsAdditions(strategy) || !cfg.strategies.includes(strategy))throw new Error('Unsupported addition strategy in replay');
+      await engine.strategyControls.update({strategy,addToWinners:true,expectedRevision:engine.strategyControls.state.revision});
+    }
     for(const event of events){
       now=event.now;await engine.reconcile();
       if(event.kind==='quote'){if(event.ts>now)throw new Error('Future quote in replay');await engine.onQuote(event);await engine.mutex.tail;}
@@ -65,7 +70,7 @@ export async function replayEngine(tape,calendar,settings={},execution={}) {
       await engine.noiseArea?.tick(now);await engine.reconcile();
     }
     const report=buildReport(store,cfg);
-    return {...report,replay:{source:tape.source,events:events.length,inputSha256:hash(tape),calendarSha256:hash(calendar),sourceSha256:RELEASE.sourceSha256,execution:{latencyMs:broker.latencyMs,participation:broker.participation},sharedPortfolio:true,calendarAware:true,liveEligible:false,
+    return {...report,replay:{source:tape.source,events:events.length,inputSha256:hash(tape),calendarSha256:hash(calendar),sourceSha256:RELEASE.sourceSha256,execution:{latencyMs:broker.latencyMs,participation:broker.participation,addToWinners:execution.addToWinners ?? []},sharedPortfolio:true,calendarAware:true,liveEligible:false,
       limitations:['Uses production signal, risk, ownership and exit coordination, with a simulated broker.', 'Displayed share size is a fill cap, not queue priority; repeated snapshots may overstate replenishment. Native bracket races and market impact require paper execution calibration.', 'Jev is off. Crypto provider context and options execution are excluded. Open exposure and unfilled orders remain unresolved at tape end.']},orders:store.orders(),finalState:engine.status()};
   }finally{engine.stopped=true;clearTimeout(engine.streamReconcile);await engine.mutex.tail;store.close();}
 }

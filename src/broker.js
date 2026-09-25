@@ -124,7 +124,10 @@ export class SimBroker {
       if (qty <= 0) { o.status = 'rejected'; continue; }
       const fee = qty * price * feeRate;
       this.state.cash = round(this.state.cash + (entry ? -1 : 1) * qty * price - fee);
-      if (entry) this.state.positions[o.symbol] = { symbol: o.symbol, qty, entryPrice: price };
+      if (entry) {
+        const previous=this.state.positions[o.symbol], total=(previous?.qty ?? 0)+qty;
+        this.state.positions[o.symbol] = { symbol:o.symbol,qty:total,entryPrice:((previous?.qty ?? 0)*(previous?.entryPrice ?? 0)+qty*price)/total };
+      }
       else {
         this.state.positions[o.symbol].qty = round(this.state.positions[o.symbol].qty - qty);
         if (this.state.positions[o.symbol].qty < 1e-9) delete this.state.positions[o.symbol];

@@ -120,6 +120,7 @@ export function chartData(engine, symbol, interval = 1) {
     levels: [...(position ? [{ label: 'Average entry', price: position.entryPrice, kind: 'entry' }] : []),
       ...(management ? [{ label: 'Stop', price: management.stop, kind: 'stop' }, { label: 'Target', price: management.target, kind: 'target' }] : []),
       ...(management?.excursion?.floor ? [{label:'Profit-exit trigger (software)',price:management.excursion.floor,kind:'stop'}] : []),
+      ...(management?.addFloor ? [{label:'Combined-position exit trigger (software)',price:management.addFloor,kind:'stop'}] : []),
       ...active.map(o => ({ label: 'Pending buy limit', price: o.limit, kind: 'pending' }))].filter(x => positive(x.price)),
     position, context: engine.snapshots.get(symbol) ?? null,
     note: short ? 'Trade-print candles from received trades, including reported sale conditions; not official Alpaca bars. Empty intervals are omitted. Forming candles are outlined. Retained in memory for at most one hour, subject to a trade-count cap; reset on reconnect or an unresolvable correction. Strategies still use provider minute bars.'

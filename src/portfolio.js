@@ -1,4 +1,5 @@
 import { isCrypto, nyDate, positive, validateQuote } from './util.js';
+import { campaignId, campaignQty } from './position-book.js';
 
 // OCC option roots also reserve their configured underlying against new entries.
 // No option price is converted into an equity price or an agent-owned position.
@@ -29,17 +30,20 @@ export class Portfolio {
         fee(exit, entry); exited += exit.filledQty ?? 0; cashFlow += (exit.filledQty ?? 0) * (exit.fillPrice ?? 0);
       }
       const expected = entry.filledQty - exited, tolerance = quantityTolerance(entry, cfg, e.assets.get(entry.symbol));
-      const p = positions.find(x => x.symbol === entry.symbol), owned = e.managed[entry.symbol]?.entryId === entry.id;
+      const p = positions.find(x => x.symbol === entry.symbol), owned = e.managed[entry.symbol]?.entryId === campaignId(entry);
+      const totalExpected=campaignQty(orders,campaignId(entry));
+      const root=orders.find(o=>o.id===campaignId(entry));
+      if(entry.addition && (!root?.addPolicy || root.symbol!==entry.symbol || root.strategy!==entry.strategy)) {conflicts.add(entry.symbol);valid=false;continue;}
       // A native exit may reach the order endpoint before the position endpoint.
       // Both increases and reductions in a managed quantity need reconciliation.
-      if (expected < -tolerance || (expected > tolerance && (!owned || !p || Math.abs(p.qty - expected) > tolerance)) ||
-          (owned && expected <= tolerance && p?.qty > tolerance)) {
+      if (expected < -tolerance || (expected > tolerance && (!owned || !p || Math.abs(p.qty - totalExpected) > tolerance)) ||
+          (owned && totalExpected <= tolerance && p?.qty > tolerance)) {
         conflicts.add(entry.symbol); valid = false; continue;
       }
       if (expected > tolerance && p) {
         const q = e.quotes.get(entry.symbol), price = validateQuote(q, now, cfg.maxQuoteAge) ? q.bid : p.marketValue / p.qty;
         if (!positive(price)) { valid = false; continue; }
-        matched.add(entry.symbol); mark += p.qty * price; unrealized += p.qty * (price - entry.fillPrice);
+        matched.add(entry.symbol); mark += expected * price; unrealized += expected * (price - entry.fillPrice);
       }
     }
     this.positions = positions.filter(p => matched.has(p.symbol));

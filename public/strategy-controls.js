@@ -13,6 +13,8 @@ export class StrategyControlsView {
     $('strategy-control-rows').addEventListener('change', event => {
       const id = event.target.dataset.strategy;
       if (id) void this.save(id, event.target.checked);
+      const add=event.target.dataset.additions;
+      if(add)void this.save(add,event.target.checked,'addToWinners');
     });
   }
   endpoint() { return '/api/strategies?'+new URLSearchParams(Object.entries(this.filter).filter(([,v])=>v)); }
@@ -31,18 +33,19 @@ export class StrategyControlsView {
       if (epoch === this.epoch) { $('strategy-control-summary').textContent = 'Strategy controls disconnected'; $('strategy-control-message').textContent = error.message; this.lock(); }
     } finally { if (epoch === this.epoch) this.loading = false; }
   }
-  lock() { for (const { input } of this.rows.values()) input.disabled = true; }
-  async save(id, enabled) {
+  lock() { for (const { input, additionInput } of this.rows.values()) { input.disabled = true; additionInput.disabled=true; } }
+  async save(id, enabled, field='enabled') {
     if (this.saving || !this.data) return;
     this.saving = true; const epoch = ++this.epoch; this.loading = false;
     this.render(); this.lock(); $('strategy-control-message').textContent = 'Saving strategy selection…';
     try {
-      await this.api('/api/strategy-settings', { strategy: id, enabled, expectedRevision: this.data.revision });
+      await this.api('/api/strategy-settings', { strategy: id, [field]:enabled, expectedRevision: this.data.revision });
       const data = await this.api(this.endpoint());
       if (epoch !== this.epoch) return;
       this.data = data;
       const strategy = data.strategies.find(s => s.id === id);
       $('strategy-control-message').textContent = `${strategy.name} ${enabled ? 'enabled for new setups' : 'switched off for new entries'}. Saved across restarts.${strategy.pendingCancellations ? ' Entry cancellation is pending broker confirmation.' : ''}${!enabled && strategy.openPositions ? ' Existing positions remain under exit management.' : ''}`;
+      if(field==='addToWinners')$('strategy-control-message').textContent=`${strategy.name}: add to winners ${enabled?'on for new positions':'off'}. Existing fills retain exit protection. Saved across restarts.`;
     } catch (error) {
       if (epoch !== this.epoch) return;
       $('strategy-control-message').textContent = error.message + ' Checking the saved selection…';
@@ -74,14 +77,24 @@ export class StrategyControlsView {
       if (!row) {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td><label class="strategy-switch"><input type="checkbox" role="switch" data-strategy="${escape(strategy.id)}" aria-label="Enable ${escape(strategy.name)}"><span class="strategy-switch-track" aria-hidden="true"></span><span data-field="selection"></span></label></td><td class="strategy-description"><strong data-field="name"></strong><small data-field="description"></small></td><td><strong data-field="net"></strong><small data-field="fees"></small></td><td><strong data-field="winRate"></strong><small data-field="wins"></small></td><td><span data-field="closed"></span><small data-field="partial"></small></td><td><strong data-field="open"></strong><small data-field="positions"></small></td><td class="strategy-availability"><span data-field="state"></span></td>`;
-        row = { tr, input: tr.querySelector('input'), fields: Object.fromEntries([...tr.querySelectorAll('[data-field]')].map(el => [el.dataset.field, el])) };
+        const additions=document.createElement('td');
+        additions.innerHTML=`<label class="strategy-switch"><input type="checkbox" role="switch" data-additions="${escape(strategy.id)}" aria-label="Add to winners for ${escape(strategy.name)}"><span class="strategy-switch-track" aria-hidden="true"></span><span data-field="addSelection"></span></label><small data-field="addResult"></small><small data-field="addNote"></small>`;
+        tr.insertBefore(additions,tr.lastElementChild);
+        row = { tr, input: tr.querySelector('[data-strategy]'), additionInput:tr.querySelector('[data-additions]'), fields: Object.fromEntries([...tr.querySelectorAll('[data-field]')].map(el => [el.dataset.field, el])) };
         this.rows.set(strategy.id, row); $('strategy-control-rows').append(tr);
       }
       row.input.checked = strategy.enabled;
       row.input.disabled = this.saving || !strategy.installed || (!strategy.enabled && !!strategy.unavailableReason);
       row.input.title = strategy.unavailableReason ?? 'Saved immediately. Existing positions keep their exit management.';
+      const a=strategy.additions;
+      row.additionInput.checked=a?.enabled ?? false;
+      row.additionInput.disabled=this.saving || !a?.supported || (!a.enabled && !a.available);
+      row.additionInput.title=a?.supported ? a.note : 'Not supported for this strategy';
       const f = row.fields;
       const values = { selection: strategy.enabled ? 'On' : 'Off', name: strategy.name, description: strategy.description,
+        addSelection:a?.supported ? a.enabled?'On · new positions':'Off':'Unavailable',
+        addResult:a?.supported ? `${money(a.realizedNetPnl)} added-share net · ${a.closed} closed scaled positions`:'',
+        addNote:a?.supported?'One addition ≤25% · paper experiment':'',
         net: money(strategy.realizedNetPnl), fees: `${money(strategy.estimatedFees)} fees included`,
         winRate: strategy.winRate === null ? '—' : `${(strategy.winRate * 100).toFixed(1)}%`, wins: strategy.closed ? `${strategy.wins} wins / ${strategy.closed} closed` : 'No closed trades',
         closed: String(strategy.closed), partial: `${strategy.partial ? `${strategy.partial} partially exited. ` : ''}${strategy.excursions?.recorded??0} with bid tracking; ${strategy.excursions?.profitableThenLost??0} positive then lost.`,

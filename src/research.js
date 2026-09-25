@@ -1,15 +1,17 @@
 import { isCrypto, terminal, validateQuote } from './util.js';
 import { executionExceptions } from './execution-incidents.js';
+import { campaignId, campaignEntries, remainingQty } from './position-book.js';
 
 const feeFor = (o, fallback) => Number.isFinite(o.fee) ? o.fee : (o.filledQty ?? 0) * (o.fillPrice ?? 0) * (o.feeRateBps ?? fallback) / 10000;
 export function tradeScorecard(orders, cfg, filter = {}) {
   if (filter.experimentId || filter.from || filter.to) {
-    const entries = orders.filter(o => o.kind === 'entry' && (!filter.experimentId || (o.experiment?.experimentId ?? 'legacy') === filter.experimentId) &&
+    const roots = orders.filter(o => o.kind === 'entry' && !o.addition && (!filter.experimentId || (o.experiment?.experimentId ?? 'legacy') === filter.experimentId) &&
       (!filter.from || o.ts >= filter.from) && (!filter.to || o.ts < filter.to));
+    const rootsIds=new Set(roots.map(o=>o.id)),entries=orders.filter(o=>o.kind==='entry' && rootsIds.has(campaignId(o)));
     const ids = new Set(entries.map(o => o.id)); orders = [...entries, ...orders.filter(o => o.kind === 'exit' && ids.has(o.entryId))];
   }
   const exceptions = executionExceptions(orders);
-  const trades = [], groups = new Map();
+  let trades = []; const groups = new Map();
   for (const entry of orders.filter(o => o.kind === 'entry' && o.filledQty > 0)) {
     const rate = entry.feeRateBps ?? (isCrypto(entry.symbol) ? cfg.cryptoFee : cfg.equityFee);
     const exits = [...new Map([...orders.filter(o => o.kind === 'exit' && o.entryId === entry.id), ...(entry.legs ?? [])].map(o => [o.brokerId ?? o.id, o])).values()].filter(o => o.filledQty > 0);
@@ -27,10 +29,26 @@ export function tradeScorecard(orders, cfg, filter = {}) {
       observedGiveback:fullyClosed && Number.isFinite(entry.excursion?.peakNet) ? entry.excursion.peakNet-(grossPnl-estimatedFees):null,
       excursionNote:entry.excursion?.basis??'Historical quote excursions were not recorded', exitReason:entry.exitReason??exits.find(x=>x.reason)?.reason??null };
     trades.push(trade);
-    const asset = isCrypto(entry.symbol) ? 'crypto' : 'equity', key = `${asset}:${entry.strategy}`;
-    if (!groups.has(key)) groups.set(key, { strategy: entry.strategy, asset, closed: 0, partial: 0, wins: 0, grossPnl: 0, estimatedFees: 0, netPnl: 0, values: [] });
-    const g = groups.get(key); g.grossPnl += grossPnl; g.estimatedFees += estimatedFees; g.netPnl += trade.estimatedNetPnl;
-    if (fullyClosed) { g.closed++; g.wins += trade.estimatedNetPnl > 0 ? 1 : 0; g.values.push(trade.estimatedNetPnl); } else g.partial++;
+  }
+  // Count a scaled position once, while exposing the added shares separately.
+  // Date/version filters follow the original entry and include its entire campaign.
+  const lots=trades; trades=[];
+  for(const root of orders.filter(o=>o.kind==='entry' && !o.addition)) {
+    const entries=campaignEntries(orders,root.id),ids=new Set(entries.map(o=>o.id)),rows=lots.filter(t=>ids.has(t.entryId));
+    if(!rows.length)continue;
+    const sum=key=>rows.reduce((n,t)=>n+t[key],0),fullyClosed=entries.every(o=>terminal(o.status) && Math.abs(remainingQty(orders,o))<1e-8) && rows.every(t=>t.fullyClosed);
+    const peak=root.campaignExcursion?.peakNet ?? root.excursion?.peakNet ?? null;
+    const trade={...rows[0],entryId:root.id,entryAt:root.ts,experimentId:root.experiment?.experimentId ?? 'legacy',fullyClosed,
+      closedAt:fullyClosed?Math.max(...rows.map(t=>t.closedAt ?? 0))||null:null,quantity:sum('quantity'),
+      grossPnl:sum('grossPnl'),estimatedFees:sum('estimatedFees'),estimatedNetPnl:sum('estimatedNetPnl'),
+      addedQty:entries.filter(o=>o.addition).reduce((n,o)=>n+(o.filledQty ?? 0),0),
+      additionNetPnl:rows.filter(t=>t.entryId!==root.id).reduce((n,t)=>n+t.estimatedNetPnl,0),
+      observedPeakNet:peak,observedGiveback:fullyClosed && peak!==null?peak-sum('estimatedNetPnl'):null};
+    trades.push(trade);
+    const asset=isCrypto(trade.symbol)?'crypto':'equity',key=`${asset}:${trade.strategy}`;
+    if(!groups.has(key))groups.set(key,{strategy:trade.strategy,asset,closed:0,partial:0,wins:0,grossPnl:0,estimatedFees:0,netPnl:0,values:[]});
+    const g=groups.get(key);g.grossPnl+=trade.grossPnl;g.estimatedFees+=trade.estimatedFees;g.netPnl+=trade.estimatedNetPnl;
+    if(fullyClosed){g.closed++;g.wins+=trade.estimatedNetPnl>0?1:0;g.values.push(trade.estimatedNetPnl);}else g.partial++;
   }
   for (const x of exceptions) { const asset=isCrypto(x.symbol)?'crypto':'equity',key=`${asset}:${x.strategy}`;if(!groups.has(key))groups.set(key,{strategy:x.strategy,asset,closed:0,partial:0,wins:0,grossPnl:0,estimatedFees:0,netPnl:0,values:[]}); }
   return { trades, exceptions, pnlAvailable: !exceptions.length, strategies: [...groups.values()].map(({ values, ...g }) => {

@@ -18,7 +18,7 @@ Git-Checked add .dockerignore .gitignore Dockerfile README.md compose.yaml packa
 & git diff --cached --quiet
 $stagedExit = $LASTEXITCODE
 if ($stagedExit -eq 1) {
-  Git-Checked commit -m 'Add broad stock discovery, breakout protection and audited strategy controls'
+  Git-Checked commit -m 'Add controlled pyramiding with lot accounting and paired replay'
 } elseif ($stagedExit -ne 0) { throw 'Cannot inspect staged changes.' }
 if ($branch -ne 'main') {
   Git-Checked switch main

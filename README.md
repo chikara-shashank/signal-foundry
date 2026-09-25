@@ -1,5 +1,7 @@
 # Signal Foundry
 
+Version 1.12 adds opt-in [controlled additions to winners](docs/PYRAMIDING.md) for the two equity breakout strategies. The switches default off. Separate fill lots retain coordinated protection, combined positions count once in win rates, and paired executable-quote replay measures incremental net P/L and drawdown. This is a paper experiment with no established profitability.
+
 Version 1.11 adds [full-universe equity discovery and breakout profit protection](docs/BREAKOUT-DISCOVERY.md). Provider runs screen all eligible listed stocks and ETFs, rotate a bounded streaming shortlist, and retain subscriptions for owned positions. New range-breakout and failed-breakout entries get versioned profit, invalidation and no-progress exits. These are forward paper experiments; the older losing results are retained separately by experiment version.
 
 Version 1.8 adds persistent per-strategy switches and a **Strategies & results**
