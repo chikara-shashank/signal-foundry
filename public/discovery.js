@@ -4,7 +4,7 @@ export class DiscoveryView {
   constructor() {
     const section=document.createElement('section');section.className='panel';section.id='discovery-panel';
     section.innerHTML='<div class="panel-title"><h2>Stock discovery</h2><span id="discovery-state" class="pill">CONNECTING</span></div><p id="discovery-coverage"></p><p id="discovery-health" class="muted"></p><details><summary>Selected stocks and screening results</summary><p id="discovery-filters" class="muted"></p><div class="table-wrap"><table><thead><tr><th>SYMBOL</th><th>SELECTION</th><th>SETUPS MATCHED</th><th>SPREAD</th><th>MINUTE DOLLAR VOLUME</th></tr></thead><tbody id="discovery-rows"></tbody></table></div></details>';
-    document.getElementById('strategy-controls-panel').before(section);
+    document.getElementById('discovery-mount').replaceWith(section);
   }
   render(status) {
     const u=status.universe,$=id=>document.getElementById(id);

@@ -7,17 +7,21 @@ import { activityPage } from './observability.js';
 import { createQuoteStream, intervalWidth } from './realtime.js';
 import { jevTracePage, jevTraceDetail } from './jev-traces.js';
 
-const files = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']], ['/jev-log.js', ['jev-log.js', 'text/javascript']], ['/live.js', ['live.js', 'text/javascript']], ['/chart.js', ['chart.js', 'text/javascript']], ['/operations.js', ['operations.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']], ['/chart.css', ['chart.css', 'text/css']], ['/operations.css', ['operations.css', 'text/css']]]);
+// Explicit public asset registry: private source, journals and .env are never served.
+const scripts = [
+  'app', 'chart', 'live', 'operations', 'jev-log', 'strategy-controls', 'options-lab',
+  'discovery', 'session-research', 'trade-performance', 'dashboard-format',
+  'dashboard-tabs', 'dashboard-controls', 'dashboard-status', 'account-performance', 'research-results',
+  'return-format', 'return-timeline', 'trade-return-chart',
+];
+const styles = ['style', 'chart', 'operations', 'strategy-controls', 'trade-performance', 'session-research', 'dashboard-tabs'];
+const files = new Map([
+  ['/', ['index.html', 'text/html']],
+  ...scripts.map(name => [`/${name}.js`, [`${name}.js`, 'text/javascript']]),
+  ...styles.map(name => [`/${name}.css`, [`${name}.css`, 'text/css']]),
+]);
 
 export function createDashboard(engine, cfg) {
-  files.set('/strategy-controls.js', ['strategy-controls.js', 'text/javascript']);
-  files.set('/strategy-controls.css', ['strategy-controls.css', 'text/css']);
-  files.set('/options-lab.js', ['options-lab.js', 'text/javascript']);
-  files.set('/discovery.js', ['discovery.js', 'text/javascript']);
-  files.set('/trade-performance.js', ['trade-performance.js', 'text/javascript']);
-  files.set('/trade-performance.css', ['trade-performance.css', 'text/css']);
-  files.set('/session-research.js', ['session-research.js', 'text/javascript']);
-  files.set('/session-research.css', ['session-research.css', 'text/css']);
   const token = Buffer.from(cfg.token);
   const stream = createQuoteStream(engine);
   const server = createServer(async (req, res) => {
@@ -63,7 +67,10 @@ export function createDashboard(engine, cfg) {
         return trace ? json(200, trace) : json(404, { error: 'Trace no longer retained' });
       }
       if (path === '/api/performance' && req.method === 'GET') return json(200, performanceData(engine, new URL(req.url, 'http://localhost').searchParams.get('scope') ?? undefined));
-      if (path === '/api/trade-performance' && req.method === 'GET') return json(200, tradePerformanceData(engine, Number(new URL(req.url, 'http://localhost').searchParams.get('days') ?? 1)));
+      if (path === '/api/trade-performance' && req.method === 'GET') {
+        const p = new URL(req.url, 'http://localhost').searchParams;
+        return json(200, tradePerformanceData(engine, Number(p.get('days') ?? 1), Number(p.get('interval') ?? 1)));
+      }
       if (path === '/api/insights' && req.method === 'GET') {
         const symbol = new URL(req.url, 'http://localhost').searchParams.get('symbol');
         if (!cfg.symbols.includes(symbol)) return json(400, { error: 'Choose a configured symbol' });

@@ -1,6 +1,6 @@
-# Trade-return timeline · v1.13
+# Trade-return timeline · v1.15
 
-Use **Trade returns** in the dashboard navigation, or open `/#trade-return-panel`. Time is horizontal, percentage return is vertical. All timestamps are New York time, including dates for multi-day windows.
+Use **Performance** in the dashboard navigation, or open `/#trade-return-panel`. Time is horizontal, percentage return is vertical. All timestamps are New York time, including dates for multi-day windows. Resolution defaults to one minute, with five- and fifteen-minute summaries available. Zoom and pan controls include a one-minute minimum viewport.
 
 - Blue triangles: entry at the 0% reference. Trading costs mean the actual post-entry return can already be negative.
 - Filled diamonds: final exits, green for positive and red for negative return.
@@ -25,7 +25,7 @@ Closed returns use final recorded fill prices. Active returns require fresh quot
 
 The engine attempts to save observations every 10 seconds after successful reconciliation. Fast price moves between observations can be missed; this is not a tick replay. The chart refreshes every 5 seconds and may display a newer bid mark than the most recent saved point. Reading the API never sends broker requests or writes history.
 
-The SQLite `trade_marks` table is created automatically on startup. It survives restarts and is included in normal database backups. Observation retention follows `RETENTION_DAYS` (30 by default); fill records remain in the long-lived audit journal. API range selection is bounded to 1, 7 or 30 days. Up to 100 campaigns are returned, prioritizing active campaigns, with a visible truncation message if needed. Per campaign, the latest 3,000 observations inside the selected window are read and thinned to bucket endpoints/extrema while preserving missing-data breaks. The UI discloses this cap.
+The SQLite `trade_marks` table is created automatically on startup. It survives restarts and is included in normal database backups. Observation retention follows `RETENTION_DAYS` (30 by default); fill records remain in the long-lived audit journal. API range selection is bounded to 1, 7 or 30 days. Up to 100 campaigns are returned, prioritizing active campaigns, with a visible truncation message if needed. Per campaign, observations are grouped into clock-aligned 1, 5 or 15 minute intervals before limiting the response to the latest 3,000 intervals. Each interval retains its last actual valuation, observed high/low range and missing-data flag. The UI discloses the cap; a coarser resolution covers more history. Fill timestamps and current endpoint valuations keep their original precision. See [dashboard module details](dashboard.md).
 
 Pre-upgrade trades have entry/exit endpoints only unless forward observations were recorded while they remained open. Earlier intratrade paths are not fabricated from candles or the final position size. Unknown fill timestamps remain unknown. New entries retain their first observed fill time, so subsequent partial fills do not move the entry reference forward. Historical records without that field use the known cumulative-fill timestamp, which can describe completion or observation of the latest cumulative fill rather than the first partial execution. Focused details disclose this limitation.
 
@@ -33,6 +33,6 @@ Chart-collection errors are surfaced in the panel and do not disable position ma
 
 ## Verification and release
 
-The test suite covers fee arithmetic, positive/negative closes, duplicate native fills, partial exits, scale-ins, stale quotes/reconciliation, malformed executions, unknown timestamps, retention/restart durability, thinning/gaps, API authentication/bounds and engine integration. UI verification uses isolated synthetic data and does not submit provider orders.
+The test suite covers fee arithmetic, positive/negative closes, duplicate native fills, partial exits, scale-ins, stale quotes/reconciliation, malformed executions, unknown timestamps, retention/restart durability, minute aggregation/extrema/gaps, viewport boundaries, API authentication/bounds, public module loading and engine integration. UI verification uses isolated synthetic data and does not submit provider orders.
 
 Run `node scripts/check.js` and `node --test --test-concurrency=1 test/*.test.js`. The existing `scripts/finish-release.ps1` workflow commits source to local main, then builds and deploys the container on port 8080 with an online journal backup, rollback image and preservation of the approved $2,000 daily-loss setting.

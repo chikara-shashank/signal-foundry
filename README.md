@@ -1,5 +1,7 @@
 # Signal Foundry
 
+Version 1.15 organizes the dashboard into **Live, Operations, Strategies, Research, Performance and Logs**. Live puts open positions and market activity first; controls have their own view. Trade returns now use clock-aligned **1m / 5m / 15m** summaries, observed high/low ranges, and zoom/pan with a one-minute minimum. Existing section links open the correct tab. See the [dashboard guide and module map](docs/dashboard.md).
+
 Version 1.13 adds a [trade-return timeline](docs/TRADE-RETURN-CHART.md): time versus net return percentage, entry/exit markers, open-position bid marks, ticker/status filters and persistent forward observations. Additions and partial exits count together; stale prices and missing historical paths are explicitly labeled.
 
 Version 1.12 adds opt-in [controlled additions to winners](docs/PYRAMIDING.md) for the two equity breakout strategies. The switches default off. Separate fill lots retain coordinated protection, combined positions count once in win rates, and paired executable-quote replay measures incremental net P/L and drawdown. This is a paper experiment with no established profitability.

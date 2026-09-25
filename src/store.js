@@ -82,6 +82,24 @@ export class Store {
   orders() { return this.db.prepare('SELECT data FROM orders ORDER BY ts').all().map(x => JSON.parse(x.data)); }
   tradeMark(campaign, point) { this.db.prepare('INSERT OR REPLACE INTO trade_marks VALUES(?,?,?)').run(campaign, point.ts, JSON.stringify(point)); }
   tradeMarks(campaign, since, until, limit = 3001) { return this.db.prepare('SELECT data FROM trade_marks WHERE campaign=? AND ts>=? AND ts<=? ORDER BY ts DESC LIMIT ?').all(campaign, since, until, limit).reverse().map(x => JSON.parse(x.data)); }
+  tradeMarkBuckets(campaign, since, until, intervalMs, gapMs, limit = 3001) {
+    // Aggregate before applying the display limit, so a minute view retains
+    // minutes of history rather than a fixed count of ten-second observations.
+    const rows = this.db.prepare(`WITH marks AS (
+      SELECT ts, data, CAST(ts / ? AS INTEGER) * ? bucket,
+        ts - LAG(ts) OVER (ORDER BY ts) gap
+      FROM trade_marks WHERE campaign=? AND ts>=? AND ts<=?
+    ), buckets AS (
+      SELECT bucket, MAX(ts) lastTs, MIN(ts) firstTs, COUNT(*) samples,
+        MIN(json_extract(data,'$.returnPct')) low,
+        MAX(json_extract(data,'$.returnPct')) high,
+        MAX(COALESCE(gap,0)>?) breakBefore
+      FROM marks GROUP BY bucket ORDER BY bucket DESC LIMIT ?
+    ) SELECT b.*, m.data FROM buckets b JOIN trade_marks m
+      ON m.campaign=? AND m.ts=b.lastTs ORDER BY b.bucket`).all(intervalMs, intervalMs, campaign, since, until, gapMs, limit, campaign);
+    return rows.map(r => ({ ...JSON.parse(r.data), bucketAt: r.bucket, firstAt: r.firstTs,
+      low: r.low, high: r.high, samples: r.samples, breakBefore: Boolean(r.breakBefore) }));
+  }
   getOrder(id) { const row = this.db.prepare('SELECT data FROM orders WHERE id=?').get(id); return row ? JSON.parse(row.data) : null; }
   modelTrace(trace) {
     this.db.prepare('INSERT INTO model_traces VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(trace.id, trace.candidateId, trace.ts, trace.symbol, JSON.stringify(trace));

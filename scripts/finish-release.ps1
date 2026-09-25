@@ -18,7 +18,7 @@ Git-Checked add .dockerignore .gitignore .env.example Dockerfile README.md compo
 & git diff --cached --quiet
 $stagedExit = $LASTEXITCODE
 if ($stagedExit -eq 1) {
-  Git-Checked commit -m 'Add session scheduling, ranked crypto, closing-news carry research and trade returns'
+  Git-Checked commit -m 'Organize dashboard tabs and add minute-resolution trade returns'
 } elseif ($stagedExit -ne 0) { throw 'Cannot inspect staged changes.' }
 if ($branch -ne 'main') {
   Git-Checked switch main

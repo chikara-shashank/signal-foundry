@@ -12,7 +12,7 @@ export class OperationsView {
     this.api = api; this.cursor = 0; this.rows = []; this.sequence = 0; this.live = true;
     const panel=document.createElement('section');panel.className='panel';panel.id='protection-panel';
     panel.innerHTML='<div class="panel-title"><h2>Protection &amp; accounting</h2><span id="release-identity" class="muted"></span></div><div id="protection-summary" class="execution-funnel"></div><p id="protection-incidents" class="amber" role="status"></p><p id="accounting-summary" class="muted"></p><p id="recovery-summary" class="muted"></p>';
-    $('strategy-controls-panel').before(panel);
+    $('protection-mount').replaceWith(panel);
     for (const id of ['log-category', 'log-symbol']) $(id).addEventListener('change', () => this.resetLog());
     $('log-search').addEventListener('input', () => this.renderLog());
     $('log-freeze').addEventListener('click', () => {
@@ -23,10 +23,10 @@ export class OperationsView {
   }
   resetLog() { this.cursor = 0; this.rows = []; this.logGeneration = (this.logGeneration ?? 0) + 1; this.renderLog(); }
   clear() { this.sequence++; this.session = null; this.resetLog(); }
-  async refresh(status, symbol) {
+  async refresh(status, symbol, view = 'operations') {
     const sequence = ++this.sequence;
     try {
-      const [d,accounting] = await Promise.all([this.api(`/api/insights?symbol=${encodeURIComponent(symbol)}`),this.api('/api/accounting').catch(()=>null)]);
+      const [d,accounting] = await Promise.all([this.api(`/api/insights?symbol=${encodeURIComponent(symbol)}`),view === 'operations' ? this.api('/api/accounting').catch(()=>null) : null]);
       if (sequence !== this.sequence) return;
       if (this.session !== d.sessionId) { this.session = d.sessionId; this.resetLog(); }
       const universe = status.market.map(m => m.symbol).join(',');
@@ -35,8 +35,10 @@ export class OperationsView {
         $('log-symbol').innerHTML = '<option value="">All instruments</option>' + status.market.map(m => `<option>${esc(m.symbol)}</option>`).join('');
         if (status.market.some(m => m.symbol === selected)) $('log-symbol').value = selected;
       }
-      this.render(d, status);this.renderProtection(status,accounting); await this.refreshLog();
-    } catch (e) { if (sequence === this.sequence) $('decision-why').textContent = `Decision telemetry unavailable: ${e.message}. The engine must run v1.3.`; }
+      this.render(d, status);
+      if (view === 'operations') this.renderProtection(status,accounting);
+      if (view === 'logs') await this.refreshLog();
+    } catch (e) { if (sequence === this.sequence) $('decision-why').textContent = `Decision telemetry unavailable: ${e.message}.`; }
   }
   renderProtection(s,a) {
     const p=s.protection,b=s.brokerBudget;

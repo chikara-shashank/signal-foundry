@@ -92,33 +92,10 @@ export function recordTradeMarks(engine) {
   engine.lastTradeMarkAt = now;
 }
 
-// Thin each bucket to endpoints and extrema. Keep timestamps and gap markers;
-// the browser must never connect over an unobserved interval.
-export function thinTradeMarks(points, max = 320, gapMs = 30000) {
-  const stride = Math.max(1, Math.ceil(points.length / Math.max(1, max / 4))), result = [];
-  let previous = null;
-  for (let i = 0; i < points.length; i += stride) {
-    const group = points.slice(i, i + stride), keep = new Set([0, group.length - 1]);
-    let min = 0, maxIndex = 0;
-    for (let j = 0; j < group.length; j++) {
-      if (group[j].returnPct < group[min].returnPct) min = j;
-      if (group[j].returnPct > group[maxIndex].returnPct) maxIndex = j;
-      const before = points[i + j - 1];
-      if (before && group[j].ts - before.ts > gapMs) { keep.add(j); if (j) keep.add(j - 1); }
-    }
-    keep.add(min); keep.add(maxIndex);
-    for (const j of [...keep].sort((a, b) => a - b)) {
-      const p = group[j], rawIndex = i + j;
-      // Connect only if every underlying interval was observed.
-      const breakBefore = previous != null && points.slice(previous + 1, rawIndex + 1).some((v, k) => v.ts - points[previous + k].ts > gapMs);
-      result.push({ ...p, breakBefore }); previous = rawIndex;
-    }
-  }
-  return result;
-}
-
-export function tradePerformanceData(engine, days = 1) {
+export function tradePerformanceData(engine, days = 1, intervalMinutes = 1) {
   if (![1, 7, 30].includes(days)) throw new Error('Choose a 1, 7 or 30 day range');
+  if (![1, 5, 15].includes(intervalMinutes)) throw new Error('Choose a 1, 5 or 15 minute resolution');
+  const intervalMs = intervalMinutes * 60000;
   const now = engine.clock(), since = now - days * DAY;
   const all = tradeCampaigns(engine).filter(r => r.status !== 'closed' || (r.closedAt ?? r.intentAt) >= since)
     .sort((a, b) => Number(a.status === 'closed') - Number(b.status === 'closed') || (b.closedAt ?? b.entryAt ?? b.intentAt) - (a.closedAt ?? a.entryAt ?? a.intentAt));
@@ -126,11 +103,11 @@ export function tradePerformanceData(engine, days = 1) {
   const trades = all.slice(0, 100).map(row => {
     // A delayed broker fill report may reveal that an exit preceded our last
     // observation. Do not draw valuations after the subsequently confirmed exit.
-    const raw = engine.store.tradeMarks(row.id, since, Math.min(now, row.closedAt ?? now), 3001), historyLimited = raw.length > 3000;
-    const points = thinTradeMarks(raw.slice(-3000), 320, gapMs);
+    const buckets = engine.store.tradeMarkBuckets(row.id, since, Math.min(now, row.closedAt ?? now), intervalMs, gapMs, 3001);
+    const historyLimited = buckets.length > 3000, points = buckets.slice(-3000);
     return { ...row, points, historyLimited };
   });
-  return { now, since, days, mode: engine.cfg.mode, gapMs, trades, total: all.length, truncated: all.length > trades.length,
+  return { now, since, days, intervalMinutes, intervalMs, mode: engine.cfg.mode, gapMs, trades, total: all.length, truncated: all.length > trades.length,
     recordingError: engine.tradeMarkError ?? null,
-    note: 'Engine-owned stock/crypto campaigns only; options research and external holdings are excluded. Return = (realized proceeds + remaining shares at the bid − all filled buy costs − trading fees, including estimated exit fees) / (all filled buy costs + entry fees). Additions and partial exits are included. Fees are provisional; model and operating costs are excluded. Entry triangles mark a 0% reference, not an after-cost valuation. Fill markers use cumulative average fills, not individual executions. Solid paths are recorded observations; dotted connectors show endpoints only. Missing observations are not reconstructed.' };
+    note: 'Engine-owned stock/crypto campaigns only; options research and external holdings are excluded. Return = (realized proceeds + remaining shares at the bid − all filled buy costs − trading fees, including estimated exit fees) / (all filled buy costs + entry fees). Additions and partial exits are included. Fees are provisional; model and operating costs are excluded. Entry triangles mark a 0% reference, not an after-cost valuation. Fill markers use cumulative average fills, not individual executions. Each clock-aligned interval shows its last recorded valuation and observed high/low range; the current interval may be incomplete. Live endpoints and fills retain their actual timestamps. Solid paths connect continuously observed intervals; dotted connectors show endpoints only. Missing observations are not reconstructed.' };
 }

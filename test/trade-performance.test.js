@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { Store } from '../src/store.js';
 import { createDashboard } from '../src/server.js';
 import { testConfig, fixture, quote } from './helpers.js';
-import { tradeCampaigns, recordTradeMarks, tradePerformanceData, thinTradeMarks } from '../src/trade-performance.js';
+import { tradeCampaigns, recordTradeMarks, tradePerformanceData } from '../src/trade-performance.js';
+import { MINUTE, minuteTicks, ReturnViewport } from '../public/return-timeline.js';
 
 const T = Date.parse('2026-09-25T15:00:00Z');
 const entry = (patch = {}) => ({ id: 'buy-1', symbol: 'SPY', kind: 'entry', strategy: 'range_breakout', status: 'filled', ts: T - 60000, filledAt: T - 59000, filledQty: 10, fillPrice: 100, fee: 1, feeRateBps: 10, ...patch });
@@ -120,12 +121,60 @@ test('chart reads do not record history and bounds retain older active positions
   const many = tradePerformanceData(e); assert.equal(many.trades.length, 100); assert.equal(many.total, 106); assert.equal(many.truncated, true); assert.equal(many.trades[0].id, 'buy-1');
 });
 
-test('thinning retains the profit peak, trough and gaps', () => {
-  const points = Array.from({ length: 2000 }, (_, i) => ({ ts: T + i * 10000 + (i >= 501 ? 120000 : 0), returnPct: i === 407 ? 9 : i === 1314 ? -4 : .1 }));
-  const thinned = thinTradeMarks(points);
-  assert.ok(thinned.some(p => p.returnPct === 9)); assert.ok(thinned.some(p => p.returnPct === -4));
-  assert.ok(thinned.some(p => p.ts === points[501].ts && p.breakBefore)); assert.equal(thinned[0].ts, points[0].ts); assert.equal(thinned.at(-1).ts, points.at(-1).ts);
-  assert.ok(thinned.length < 340);
+test('clock-aligned minute summaries retain the last value, intraminute extremes and gaps', t => {
+  const e = harness(t); e.store.order(entry()); e.clock = () => T + 200000;
+  for (const [offset, value] of [[1000, 1], [10000, 9], [20000, -4], [50000, 2], [61000, 3], [180000, 4]])
+    e.store.tradeMark('buy-1', { ts: T + offset, returnPct: value, net: value * 10 });
+  const data = tradePerformanceData(e), p = data.trades[0].points;
+  assert.equal(data.intervalMs, MINUTE); assert.equal(p.length, 3);
+  assert.deepEqual(p.map(x => x.bucketAt), [T, T + MINUTE, T + 3 * MINUTE]);
+  assert.equal(p[0].ts, T + 50000); assert.equal(p[0].returnPct, 2);
+  assert.equal(p[0].low, -4); assert.equal(p[0].high, 9); assert.equal(p[0].samples, 4);
+  assert.equal(p[1].breakBefore, false); assert.equal(p[2].breakBefore, true);
+  const wider = tradePerformanceData(e, 1, 5).trades[0].points;
+  assert.equal(wider.length, 1); assert.equal(wider[0].samples, 6); assert.equal(wider[0].breakBefore, true);
+});
+
+test('minute history is capped after aggregation and excludes future and post-exit values', t => {
+  const e = harness(t); e.store.order(entry()); e.clock = () => T + 500 * MINUTE;
+  e.store.transaction(() => {
+    for (let i = 0; i < 3001; i++) e.store.tradeMark('buy-1', { ts: T + i * 10000, returnPct: i });
+    e.store.tradeMark('buy-1', { ts: e.clock() + 1000, returnPct: -999 });
+  });
+  let p = tradePerformanceData(e).trades[0];
+  assert.equal(p.historyLimited, false); assert.equal(p.points.length, 501); assert.equal(p.points[0].bucketAt, T);
+  assert.equal(p.points.at(-1).returnPct, 3000);
+  e.store.order(exit({ filledAt: T + 5000 }));
+  p = tradePerformanceData(e).trades[0]; assert.equal(p.points.length, 1); assert.equal(p.points[0].returnPct, 0);
+  assert.equal(p.closedAt, T + 5000);
+});
+
+test('minute summaries explicitly flag truncated windows and retain cost changes in the last mark', t => {
+  const e = harness(t); e.store.order(entry()); e.clock = () => T + 3010 * MINUTE;
+  e.store.transaction(() => {
+    for (let i = 0; i < 3010; i++) e.store.tradeMark('buy-1', { ts: T + i * MINUTE, returnPct: i, capital: i + 1000, qty: i });
+  });
+  const p = tradePerformanceData(e, 7).trades[0];
+  assert.equal(p.historyLimited, true); assert.equal(p.points.length, 3000);
+  assert.equal(p.points[0].bucketAt, T + 10 * MINUTE);
+  assert.equal(p.points.at(-1).capital, 4009); assert.equal(p.points.at(-1).qty, 3009);
+  assert.equal(tradePerformanceData(e, 7, 5).trades[0].historyLimited, false);
+});
+
+test('return viewport has one-minute minimum, clamps panning, and aligns time ticks', () => {
+  const viewport = new ReturnViewport();
+  let range = viewport.resolve(T + 1000, T + 120000);
+  assert.equal(range.from, T); assert.equal(range.to, T + 120000);
+  for (let i = 0; i < 10; i++) viewport.zoom(.5);
+  assert.equal(viewport.window.to - viewport.window.from, MINUTE);
+  viewport.pan(-100); assert.equal(viewport.window.from, T);
+  viewport.pan(100); assert.equal(viewport.window.to, T + 120000);
+  viewport.reset(); assert.equal(viewport.resolve(T + 1000, T + 2000).to - viewport.bounds.from, MINUTE);
+  for (const span of [1000, MINUTE, 3600000, 30 * 86400000]) {
+    const ticks = minuteTicks(T + 1000, T + span, 900);
+    assert.ok(ticks.every(x => x % MINUTE === 0));
+    assert.ok(ticks.every((x, i) => !i || x - ticks[i - 1] >= MINUTE));
+  }
 });
 
 test('authenticated API and static assets are wired; unsupported ranges are rejected', async t => {
@@ -134,6 +183,8 @@ test('authenticated API and static assets are wired; unsupported ranges are reje
   try {
     assert.equal((await fetch(base + '/api/trade-performance')).status, 401);
     assert.equal((await fetch(base + '/api/trade-performance?days=0', { headers })).status, 400);
+    for (const interval of ['0', '1s', '0.5', '2', 'NaN', '-1']) assert.equal((await fetch(base + '/api/trade-performance?interval=' + interval, { headers })).status, 400);
+    for (const interval of [1, 5, 15]) assert.equal((await (await fetch(base + '/api/trade-performance?interval=' + interval, { headers })).json()).intervalMinutes, interval);
     const response = await fetch(base + '/api/trade-performance?days=7', { headers }); assert.equal(response.status, 200); assert.equal((await response.json()).days, 7);
     assert.match(await (await fetch(base + '/trade-performance.js')).text(), /class TradePerformanceView/);
     assert.match(await (await fetch(base + '/trade-performance.css')).text(), /return-surface/);
@@ -151,7 +202,7 @@ test('engine reconciliation records return observations without enabling entries
     assert.ok(data.trades[0].points.length > 0); assert.ok(Number.isFinite(data.trades[0].returnPct));
     f.engine.operatorPause = true; const count = f.store.orders().length;
     f.advance(11000); await f.engine.onQuote(quote('SPY', f.now(), 100.1)); await f.engine.reconcile();
-    assert.equal(f.store.orders().length, count); assert.ok(tradePerformanceData(f.engine).trades[0].points.length >= 2);
+    assert.equal(f.store.orders().length, count); assert.ok(tradePerformanceData(f.engine).trades[0].points.reduce((sum, p) => sum + p.samples, 0) >= 2);
     f.store.tradeMark = () => { throw new Error('simulated chart storage failure'); };
     f.advance(11000); await f.engine.onQuote(quote('SPY', f.now(), 100.1)); await f.engine.reconcile();
     assert.equal(f.engine.protection.state, 'reconciled'); assert.match(tradePerformanceData(f.engine).recordingError, /could not be saved/);
