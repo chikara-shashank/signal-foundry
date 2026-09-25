@@ -26,6 +26,26 @@ export const reconnectDelay = failures => Math.min(60000, 1000 * 2 ** Math.min(f
 export class AlpacaFeed {
   stopped = false; socket = null; timer = null; streamedAt = 0; reconnects = 0; now = () => Date.now();
   constructor(name, url, symbols, cfg, engine, Socket = WebSocket, wait = sleep) { Object.assign(this, { name, url, symbols, cfg, engine, Socket, wait }); }
+  setSymbols(symbols) {
+    if(this.selectionWaiter)return Promise.reject(new Error('universe_subscription_busy'));
+    this.symbols=[...new Set(symbols)];
+    return new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>{this.selectionWaiter=null;this.socket?.close();reject(new Error('universe_subscription_timeout'));},15000);
+      this.selectionWaiter={resolve:()=>{clearTimeout(timer);this.selectionWaiter=null;resolve();},reject:()=>{clearTimeout(timer);this.selectionWaiter=null;reject(new Error('universe_subscription_failed'));}};
+      if(this.authenticated&&this.subscriptions)this.syncSubscriptions();
+    });
+  }
+  syncSubscriptions() {
+    const channels=['bars','quotes','trades'], current=this.subscriptions;
+    const remove=Object.fromEntries(channels.map(k=>[k,(current[k]??[]).filter(s=>!this.symbols.includes(s))]));
+    if(channels.some(k=>remove[k].length)){this.socket.send(JSON.stringify({action:'unsubscribe',...remove}));return;}
+    const add=Object.fromEntries(channels.map(k=>[k,this.symbols.filter(s=>!current[k]?.includes(s))]));
+    if(channels.some(k=>add[k].length)){this.socket.send(JSON.stringify({action:'subscribe',...add}));return;}
+    this.engine.realtime.trades.setSymbols(this.engine.cfg.symbols);
+    const newlyConnected=this.symbols.filter(s=>!this.confirmedSymbols?.includes(s));
+    this.engine.realtime.trades.connected(newlyConnected,this.engine.clock());this.confirmedSymbols=[...this.symbols];
+    this.selectionWaiter?.resolve();
+  }
   async run() {
     let failures = 0;
     while (!this.stopped) {
@@ -46,10 +66,11 @@ export class AlpacaFeed {
   connect() {
     return new Promise((resolve, reject) => {
       const ws = this.socket = new this.Socket(this.url); let authenticated = false, settled = false, lastData = Date.now();
+      this.authenticated=false;this.subscriptions=null;this.confirmedSymbols=[];
       this.sessionError = null; this.closeCode = null;
       this.engine.feeds[this.name] = { ...this.engine.feeds[this.name], status: 'connecting' };
       const fail = reason => {
-        if (settled) return; settled = true; this.sessionError = reason; clearInterval(this.timer); ws.close();
+        if (settled) return; settled = true; this.sessionError = reason; clearInterval(this.timer); this.selectionWaiter?.reject(); ws.close();
         this.engine.feeds[this.name] = { status: reason, lastError: reason, errorAt: Date.now() }; reject(new Error(reason));
       };
       const authDeadline = Date.now() + 15000;
@@ -66,11 +87,15 @@ export class AlpacaFeed {
           for (const x of messages) {
             if (x.T === 'error') return fail(`feed_error_${Number(x.code) || 0}`);
             if (x.T === 'success' && x.msg === 'authenticated') {
-              authenticated = true; ws.send(JSON.stringify({ action: 'subscribe', bars: this.symbols, quotes: this.symbols, trades: this.symbols }));
+              authenticated = true; this.authenticated=true; ws.send(JSON.stringify({ action: 'subscribe', bars: this.symbols, quotes: this.symbols, trades: this.symbols }));
             }
             if (x.T === 'subscription') {
-              if (!this.symbols.every(s => x.bars?.includes(s) && x.quotes?.includes(s) && x.trades?.includes(s))) return fail('incomplete_subscription');
-              this.engine.realtime.trades.connected(this.symbols, this.engine.clock());
+              this.subscriptions=x;
+              if(this.selectionWaiter)this.syncSubscriptions();
+              else {
+                if (!this.symbols.every(s => x.bars?.includes(s) && x.quotes?.includes(s) && x.trades?.includes(s))) return fail('incomplete_subscription');
+                this.engine.realtime.trades.connected(this.symbols, this.engine.clock());this.confirmedSymbols=[...this.symbols];
+              }
               this.streamedAt = this.now();
               this.engine.feeds[this.name] = { status: 'streaming', lastMessage: Date.now(), reconnects: this.reconnects };
             }
@@ -87,11 +112,12 @@ export class AlpacaFeed {
       });
       ws.addEventListener('error', () => fail('connection_error'));
       ws.addEventListener('close', event => {
+        this.authenticated=false;this.selectionWaiter?.reject();
         if (!settled) { settled = true; clearInterval(this.timer); this.closeCode = Number.isInteger(event?.code) ? event.code : null; resolve(); }
       });
     });
   }
-  stop() { this.stopped = true; clearInterval(this.timer); this.socket?.close(); }
+  stop() { this.stopped = true; this.selectionWaiter?.reject(); clearInterval(this.timer); this.socket?.close(); }
 }
 
 // Deliberately artificial price regimes exercise both accepted and rejected setups.

@@ -9,6 +9,10 @@ import { jevTracePage, jevTraceDetail } from './jev-traces.js';
 const files = new Map([['/', ['index.html', 'text/html']], ['/app.js', ['app.js', 'text/javascript']], ['/jev-log.js', ['jev-log.js', 'text/javascript']], ['/live.js', ['live.js', 'text/javascript']], ['/chart.js', ['chart.js', 'text/javascript']], ['/operations.js', ['operations.js', 'text/javascript']], ['/style.css', ['style.css', 'text/css']], ['/chart.css', ['chart.css', 'text/css']], ['/operations.css', ['operations.css', 'text/css']]]);
 
 export function createDashboard(engine, cfg) {
+  files.set('/strategy-controls.js', ['strategy-controls.js', 'text/javascript']);
+  files.set('/strategy-controls.css', ['strategy-controls.css', 'text/css']);
+  files.set('/options-lab.js', ['options-lab.js', 'text/javascript']);
+  files.set('/discovery.js', ['discovery.js', 'text/javascript']);
   const token = Buffer.from(cfg.token);
   const stream = createQuoteStream(engine);
   const server = createServer(async (req, res) => {
@@ -32,6 +36,17 @@ export function createDashboard(engine, cfg) {
         return stream.open(req, res, symbol, interval);
       }
       if (path === '/api/status' && req.method === 'GET') return json(200, engine.status());
+      if (path === '/api/accounting' && req.method === 'GET') return json(200, engine.accounting.snapshot());
+      if (path === '/api/incidents' && req.method === 'GET') return json(200, Object.values(engine.store.get('executionIncidents',{})));
+      if (path === '/api/readiness' && req.method === 'GET') { const s=engine.status();return json(s.protection.healthy?200:503,{alive:Date.now()-engine.lastLoop<60000,entryReady:s.entryReady,entryBlockers:s.entryBlockers,protection:s.protection}); }
+      if (path === '/api/strategies' && req.method === 'GET') {
+        const p = new URL(req.url,'http://localhost').searchParams, filter = {};
+        if (p.has('experimentId')) { if (!/^(legacy|[a-f0-9]{64})$/.test(p.get('experimentId'))) return json(400,{error:'Invalid experiment ID'}); filter.experimentId=p.get('experimentId'); }
+        for (const k of ['from','to']) if (p.has(k)) { const v=p.get(k); if (!/^\d{4}-\d\d-\d\d$/.test(v) || !Number.isFinite(Date.parse(v)) || new Date(v).toISOString().slice(0,10)!==v) return json(400,{error:'Use valid YYYY-MM-DD dates'}); filter[k]=Date.parse(v); }
+        if (filter.from && filter.to && filter.from>=filter.to) return json(400,{error:'End date must follow start date'});
+        return json(200, engine.strategyControls.snapshot(filter));
+      }
+      if (path === '/api/options' && req.method === 'GET') return engine.optionsLab ? json(200, engine.optionsLab.snapshot()) : json(503, { error: 'Options research is not initialized' });
       if (path === '/api/research' && req.method === 'GET') return json(200, engine.research());
       if (path === '/api/jev-traces' && req.method === 'GET') {
         const p = new URL(req.url, 'http://localhost').searchParams;
@@ -61,12 +76,21 @@ export function createDashboard(engine, cfg) {
         const s = engine.status(); res.writeHead(200, { 'Content-Type': 'text/plain' });
         return res.end(`signal_foundry_ready ${Number(s.ready)}\nsignal_foundry_paused ${Number(s.paused)}\nsignal_foundry_equity_usd ${s.account?.equity ?? 0}\nsignal_foundry_daily_pnl_usd ${s.dailyPnl}\nsignal_foundry_model_spend_usd ${s.jev.spent}\nsignal_foundry_open_positions ${s.positions.length}\n`);
       }
-      if (['/api/control', '/api/paper-test', '/api/risk-settings'].includes(path) && req.method === 'POST') {
+      if (['/api/control', '/api/paper-test', '/api/risk-settings', '/api/strategy-settings', '/api/options-settings'].includes(path) && req.method === 'POST') {
         if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) return json(403, { error: 'Origin rejected' });
         if (!String(req.headers['content-type']).startsWith('application/json')) return json(415, { error: 'JSON required' });
         let body = '';
         for await (const chunk of req) { body += chunk; if (body.length > 1024) return json(413, { error: 'Request too large' }); }
         const request = JSON.parse(body);
+        if (path === '/api/options-settings') {
+          if (!engine.optionsLab) return json(503, { error: 'Options research is not initialized' });
+          try { return json(200, await engine.optionsLab.update(request)); }
+          catch (error) { if ([400, 409].includes(error.status)) return json(error.status, { error: error.message }); throw error; }
+        }
+        if (path === '/api/strategy-settings') {
+          try { return json(200, await engine.strategyControls.update(request)); }
+          catch (error) { if ([400, 409].includes(error.status)) return json(error.status, { error: error.message }); throw error; }
+        }
         if (path === '/api/risk-settings') {
           try { return json(200, await engine.updateRiskSettings(request)); }
           catch (error) { if ([400, 409].includes(error.status)) return json(error.status, { error: error.message }); throw error; }

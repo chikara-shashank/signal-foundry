@@ -1,4 +1,6 @@
 FROM node:24.13.0-bookworm-slim AS verify
+ARG VCS_REF
+ARG SOURCE_DIRTY
 WORKDIR /app
 COPY package.json ./
 COPY src ./src
@@ -6,7 +8,8 @@ COPY scripts ./scripts
 COPY test ./test
 COPY public ./public
 COPY fixtures ./fixtures
-RUN node scripts/check.js && node --test --test-concurrency=1 test/*.test.js
+COPY docs/momentum-experiment-v0.json ./docs/momentum-experiment-v0.json
+RUN node scripts/check.js && node --test --test-concurrency=1 test/*.test.js && node scripts/release.js
 
 FROM node:24.13.0-bookworm-slim
 ENV NODE_ENV=production HOST=0.0.0.0 DATA_DIR=/app/data

@@ -1,6 +1,6 @@
 {
   "name": "signal-foundry",
-  "version": "1.7.0",
+  "version": "1.11.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24.13.0 <25" },
@@ -9,11 +9,15 @@
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "check": "node scripts/check.js",
     "replay": "node scripts/replay.js",
+    "replay:engine": "node scripts/engine-replay.js",
+    "recovery": "node scripts/recovery.js",
+    "release": "node scripts/release.js",
     "backtest": "node --env-file-if-exists=.env scripts/backtest.js",
     "research:intraday": "node --env-file-if-exists=.env scripts/intraday-research.js",
     "research:momentum": "node scripts/momentum-research.js",
     "research:momentum:data": "node --env-file-if-exists=.env scripts/momentum-data.js",
     "research:momentum:validation": "node scripts/momentum-validation.js",
+    "research:options": "node --env-file-if-exists=.env scripts/options-research.js",
     "doctor": "node --env-file-if-exists=.env scripts/doctor.js",
     "report": "node --env-file-if-exists=.env scripts/report.js"
   }

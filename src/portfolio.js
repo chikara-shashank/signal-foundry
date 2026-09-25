@@ -21,6 +21,7 @@ export class Portfolio {
       fee(entry); if (!(entry.filledQty > 0)) continue;
       cashFlow -= entry.filledQty * entry.fillPrice;
       const exits = [...orders.filter(o => o.kind === 'exit' && o.entryId === entry.id), ...(entry.legs ?? [])];
+      if(entry.replacedBy||exits.some(o=>o.replacedBy)){valid=false;conflicts.add(entry.symbol);}
       let exited = 0; const seen = new Set();
       for (const exit of exits) {
         const id = exit.brokerId ?? exit.id;

@@ -1,0 +1,12 @@
+{
+  "version": "robinhood-listed-equity-2026-09-25",
+  "reviewedAt": "2026-09-25",
+  "source": "https://robinhood.com/us/en/support/articles/trading-fees-on-robinhood/",
+  "scope": "US listed stocks and ETFs only; excludes options, ADR charges and professional-customer fees",
+  "futureConvention": "Latest published effective rate until superseded; prospective costs are assumptions subject to complete repricing when amended",
+  "schedules": [
+    { "effectiveFrom": "2026-04-04", "effectiveTo": null, "secNumerator": "206", "secDenominator": "100000000000", "secWaiverNotional": 500,
+      "tafNumerator": "195", "tafDenominator": "10000", "tafCapCents": "979", "tafWaiverShares": 50,
+      "catNumerator": "3", "catDenominator": "10000" }
+  ]
+}

@@ -1,7 +1,14 @@
 import { isCrypto, terminal, validateQuote } from './util.js';
+import { executionExceptions } from './execution-incidents.js';
 
 const feeFor = (o, fallback) => Number.isFinite(o.fee) ? o.fee : (o.filledQty ?? 0) * (o.fillPrice ?? 0) * (o.feeRateBps ?? fallback) / 10000;
-export function tradeScorecard(orders, cfg) {
+export function tradeScorecard(orders, cfg, filter = {}) {
+  if (filter.experimentId || filter.from || filter.to) {
+    const entries = orders.filter(o => o.kind === 'entry' && (!filter.experimentId || (o.experiment?.experimentId ?? 'legacy') === filter.experimentId) &&
+      (!filter.from || o.ts >= filter.from) && (!filter.to || o.ts < filter.to));
+    const ids = new Set(entries.map(o => o.id)); orders = [...entries, ...orders.filter(o => o.kind === 'exit' && ids.has(o.entryId))];
+  }
+  const exceptions = executionExceptions(orders);
   const trades = [], groups = new Map();
   for (const entry of orders.filter(o => o.kind === 'entry' && o.filledQty > 0)) {
     const rate = entry.feeRateBps ?? (isCrypto(entry.symbol) ? cfg.cryptoFee : cfg.equityFee);
@@ -13,17 +20,26 @@ export function tradeScorecard(orders, cfg) {
     const estimatedFees = feeFor(entry, rate) * fraction + exits.reduce((n, o) => n + feeFor(o, rate), 0);
     // A missing crypto quantity is not silently labeled a fee or a closed trade.
     const fullyClosed = terminal(entry.status) && Math.abs(quantity - entry.filledQty) < 1e-8 && exits.every(o => terminal(o.status));
-    const trade = { symbol: entry.symbol, strategy: entry.strategy, entryId: entry.id, quantity, fullyClosed, grossPnl, estimatedFees, estimatedNetPnl: grossPnl - estimatedFees };
+    const trade = { symbol: entry.symbol, strategy: entry.strategy, entryId: entry.id, experimentId: entry.experiment?.experimentId ?? 'legacy',
+      entryAt: entry.ts, closedAt: fullyClosed ? Math.max(...exits.map(o => o.filledAt ?? o.lastFillObservedAt ?? o.ts ?? 0)) || null : null,
+      quantity, fullyClosed, grossPnl, estimatedFees, estimatedNetPnl: grossPnl - estimatedFees,
+      observedPeakNet:entry.excursion?.peakNet??null, observedWorstNet:entry.excursion?.worstNet??null,
+      observedGiveback:fullyClosed && Number.isFinite(entry.excursion?.peakNet) ? entry.excursion.peakNet-(grossPnl-estimatedFees):null,
+      excursionNote:entry.excursion?.basis??'Historical quote excursions were not recorded', exitReason:entry.exitReason??exits.find(x=>x.reason)?.reason??null };
     trades.push(trade);
     const asset = isCrypto(entry.symbol) ? 'crypto' : 'equity', key = `${asset}:${entry.strategy}`;
     if (!groups.has(key)) groups.set(key, { strategy: entry.strategy, asset, closed: 0, partial: 0, wins: 0, grossPnl: 0, estimatedFees: 0, netPnl: 0, values: [] });
     const g = groups.get(key); g.grossPnl += grossPnl; g.estimatedFees += estimatedFees; g.netPnl += trade.estimatedNetPnl;
     if (fullyClosed) { g.closed++; g.wins += trade.estimatedNetPnl > 0 ? 1 : 0; g.values.push(trade.estimatedNetPnl); } else g.partial++;
   }
-  return { trades, strategies: [...groups.values()].map(({ values, ...g }) => {
+  for (const x of exceptions) { const asset=isCrypto(x.symbol)?'crypto':'equity',key=`${asset}:${x.strategy}`;if(!groups.has(key))groups.set(key,{strategy:x.strategy,asset,closed:0,partial:0,wins:0,grossPnl:0,estimatedFees:0,netPnl:0,values:[]}); }
+  return { trades, exceptions, pnlAvailable: !exceptions.length, strategies: [...groups.values()].map(({ values, ...g }) => {
     const mean = values.length ? values.reduce((a,b) => a+b,0) / values.length : null;
     const variance = values.length > 1 ? values.reduce((a,b) => a + (b-mean)**2,0) / (values.length-1) : null;
-    return { ...g, winRate: g.closed ? g.wins / g.closed : null, meanNetPerClosedTrade: mean,
+    const unresolved = exceptions.filter(x => x.strategy === g.strategy);
+    const wins = values.filter(x=>x>0), losses = values.filter(x=>x<0), average = xs=>xs.length ? xs.reduce((a,b)=>a+b,0)/xs.length : null;
+    return { ...g, ...(unresolved.length ? { netPnl: null, grossPnl: null } : {}), exceptions: unresolved.length, winRate: g.closed ? g.wins / g.closed : null, meanNetPerClosedTrade: mean,
+      averageWin:average(wins), averageLoss:average(losses), profitFactor:losses.length ? wins.reduce((a,b)=>a+b,0)/-losses.reduce((a,b)=>a+b,0) : null,
       standardError: variance === null ? null : Math.sqrt(variance / values.length),
       evidence: g.closed < 30 ? 'insufficient_sample' : 'paper_sample_requires_out_of_sample_validation' };
   }), note: 'Local agent fills only; frozen per-order fee rates or recorded simulator fees. Partial exits are separate. Crypto fee-in-kind or dust residuals remain partial until reconciled; this is not a broker fee ledger. Model/cloud costs and open P/L are excluded.' };

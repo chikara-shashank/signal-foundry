@@ -18,6 +18,11 @@ export class TradeHistory {
   constructor(symbols, cap = Math.max(1000, Math.floor(200000 / symbols.length))) {
     this.cap = cap; this.symbols = new Map(symbols.map(s => [s, { trades: new Map(), revision: 0, coverageAfter: 0, lostCorrections: 0, connectedAt: 0 }]));
   }
+  setSymbols(symbols) {
+    this.cap=Math.max(1000,Math.floor(200000/Math.max(1,symbols.length)));
+    for(const s of this.symbols.keys())if(!symbols.includes(s))this.symbols.delete(s);
+    for(const s of symbols)if(!this.symbols.has(s))this.symbols.set(s,{trades:new Map(),revision:0,coverageAfter:0,lostCorrections:0,connectedAt:0});
+  }
   connected(symbols, now) {
     for (const symbol of symbols) { const s = this.symbols.get(symbol); if (!s) continue; s.trades.clear(); s.connectedAt = now; s.coverageAfter = Math.ceil(now / 1000) * 1000; s.revision++; }
   }

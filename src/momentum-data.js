@@ -48,7 +48,7 @@ export class MomentumData {
       const excludedType=/warrant|\brights?\b|\bunits?\b|preferred|depositary|\bETF\b|\bETN\b|\bfund\b|\btrust\b/i.test(a.name);
       return [{symbol:a.symbol,name:a.name,price,gainPct:(price/previous-1)*100,spread:x.latestQuote?x.latestQuote.ap-x.latestQuote.bp:null,
         preliminaryType:excludedType?'excluded_by_name':'needs_verified_common_share_classification',float:null,qualified:false,
-        missing:['verified_float','verified_security_type','split_basis','30_session_volume_baseline','material_catalyst_classification','complete_receipt_tape'],
+        missing:['verified_float','verified_security_type','split_basis','30_session_volume_baseline','material_catalyst_classification','complete_receipt_tape','point_in_time_tick_and_lot_rules','continuous_halt_status','04_00_session_coverage'],
         quoteSizeUnits:'provider_round_lots_not_shares'}];
     }).sort((a,b)=>b.gainPct-a.gainPct||a.symbol.localeCompare(b.symbol));
     const symbols=rows.filter(x=>x.preliminaryType!=='excluded_by_name').slice(0,20).map(x=>x.symbol);

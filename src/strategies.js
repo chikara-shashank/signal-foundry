@@ -1,10 +1,10 @@
 import { idFor, positive, isCrypto } from './util.js';
 
-export const STRATEGIES = ['range_breakout', 'trend_pullback', 'failed_breakout', 'vwap_reversion', 'volatility_expansion', 'order_flow_continuation'];
-export const BAR_STRATEGIES = STRATEGIES.filter(s => s !== 'order_flow_continuation');
-// Stateful session strategies run in the engine thread, not in the per-bar workers.
-export const SESSION_STRATEGIES = ['noise_area'];
-export const STRATEGY_VERSION = '1.1.0';
+import { WORKER_STRATEGIES } from './strategy-registry.js';
+import { SETUPS } from './strategy-setups.js';
+export { BAR_STRATEGIES, SESSION_STRATEGIES } from './strategy-registry.js';
+export const STRATEGIES = WORKER_STRATEGIES;
+export const STRATEGY_VERSION = '1.2.0';
 
 export function assess(strategy, f, now) {
   const b = f.bar, checks = [];
@@ -19,20 +19,8 @@ export function assess(strategy, f, now) {
   check('15m context available', f.trend15 != null, '=', true);
   check('Bar has volume', b.volume, '>', 0);
   const upward = () => { check('Fast EMA above slow EMA', f.ema9 - f.ema21, '>', 0); check('5m trend rising', f.trend5, '>', 0); check('15m trend nonnegative', f.trend15, '>=', 0); };
-  if (strategy === 'range_breakout') { upward(); check('Close clears prior range high', b.close, '>', f.rangeHigh, 'USD'); check('Relative volume', f.relativeVolume, '>=', 1.25, 'x'); check('Close above VWAP', b.close, '>', f.rollingVwap, 'USD'); }
-  if (strategy === 'trend_pullback') { upward(); check('Previous low touched fast EMA', f.previous.low, '<=', f.previousEma9, 'USD'); check('Close recovered fast EMA', b.close, '>', f.ema9, 'USD'); check('Close improved', b.close, '>', f.previous.close, 'USD'); check('Relative volume', f.relativeVolume, '>=', .8, 'x'); }
-  if (strategy === 'failed_breakout') { check('Low swept prior range', b.low, '<', f.rangeLow, 'USD'); check('Close reclaimed range', b.close, '>', f.rangeLow, 'USD'); check('Green candle', b.close, '>', b.open, 'USD'); check('Relative volume', f.relativeVolume, '>=', 1.1, 'x'); check('15m trend floor', f.trend15, '>', -.005); }
-  if (strategy === 'vwap_reversion') { check('Range regime', f.regime, '=', 'range'); check('VWAP deviation', f.vwapZ, '<', -1.5); check('Close improved', b.close, '>', f.previous.close, 'USD'); check('Green candle', b.close, '>', b.open, 'USD'); check('15m trend floor', f.trend15, '>', -.005); }
-  if (strategy === 'volatility_expansion') { check('Prior compression', f.priorCompression, '<', .8); check('Volatility expansion', f.volatilityRatio, '>', 1.2); check('Volatility below shock', f.volatilityRatio, '<', 2.5); check('Close clears prior range high', b.close, '>', f.rangeHigh, 'USD'); check('Relative volume', f.relativeVolume, '>=', 1.5, 'x'); check('15m trend nonnegative', f.trend15, '>=', 0); }
-  if (strategy === 'order_flow_continuation') {
-    check('Equity microstructure profile', !isCrypto(f.symbol), '=', true);
-    const m = f.micro;
-    check('Microstructure available', !!m, '=', true); check('Quote context age', m ? now - m.ts : null, '<=', 1000, 'ms');
-    check('Quote observations', m?.observations, '>=', 20); check('Observation span', m?.spanMs, '>=', 1000, 'ms');
-    check('Bid-depth imbalance', m?.imbalance, '>', .3); check('Normalized order flow', m?.normalizedOfi, '>', 1);
-    check('Microprice skew', m?.micropriceSkewBps, '>', .1, 'bps'); check('Short-term return', m?.returnBps, '>', 0, 'bps'); upward(); check('No shock regime', f.regime !== 'shock', '=', true);
-  }
-  const qualifies = STRATEGIES.includes(strategy) && checks.every(c => c.pass);
+  SETUPS[strategy]?.({ f, b, check, upward, now });
+  const qualifies = STRATEGIES.includes(strategy) && typeof SETUPS[strategy] === 'function' && checks.every(c => c.pass);
   const assessment = { symbol: f.symbol, strategy, ts: now, matched: qualifies, passed: checks.filter(c => c.pass).length,
     checks, reason: qualifies ? 'Setup conditions met' : checks.find(c => !c.pass)?.name ?? 'Unknown strategy' };
   if (!qualifies) return { candidate: null, assessment };

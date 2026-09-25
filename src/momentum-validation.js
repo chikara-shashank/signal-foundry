@@ -1,8 +1,27 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
+import { FEE_SCHEDULE_HASH } from './momentum-fees.js';
 export function momentumCodeHash(){
   const names=['src/momentum-scanner.js','src/momentum-fees.js','src/momentum-pullback.js','src/momentum-portfolio.js','src/momentum-research.js','src/momentum-validation.js','src/momentum-conditions.js','src/momentum-normalize.js','src/momentum-recorder.js','src/momentum-data.js','scripts/momentum-data.js','scripts/momentum-research.js','docs/momentum-experiment-v0.json'];
-  const h=createHash('sha256');for(const name of names)h.update(name+'\n').update(readFileSync(new URL('../'+name,import.meta.url)));return h.digest('hex');
+  const h=createHash('sha256');for(const name of names)h.update(name+'\n').update(readFileSync(new URL('../'+name,import.meta.url),'utf8').replaceAll('\r\n','\n'));return h.digest('hex');
+}
+const digest = body => createHash('sha256').update(JSON.stringify(body)).digest('hex');
+export function verifyRegistration(registration) {
+  const {sha256,...body}=registration;
+  if(digest(body)!==sha256)throw new Error('Registration integrity mismatch');
+  if (body.amendedFrom) {
+    verifyRegistration(body.amendedFrom);
+    const { sha256:oldDigest, feeScheduleHash:oldFee, feeAmendment:oldAmendment, amendedFrom:oldParent, ...oldCore }=body.amendedFrom;
+    const { feeScheduleHash:newFee, feeAmendment:amendment, amendedFrom:parent, ...newCore }=body;
+    if(JSON.stringify(oldCore)!==JSON.stringify(newCore)||!amendment?.reason||amendment.fullRepricingRequired!==true)throw new Error('Fee amendment changed frozen experiment');
+  }
+}
+export function amendFeeSchedule(registration, amendment, now=Date.now()) {
+  verifyRegistration(registration);
+  if(typeof amendment.reason!=='string'||amendment.reason.trim().length<20||!/^https:\/\//.test(amendment.sourceUrl??''))throw new Error('Document the published fee change and its HTTPS source');
+  if(registration.feeScheduleHash===FEE_SCHEDULE_HASH)throw new Error('Fee schedule is unchanged');
+  const body={...registration,feeScheduleHash:FEE_SCHEDULE_HASH,amendedFrom:registration,feeAmendment:{reason:amendment.reason.trim(),sourceUrl:amendment.sourceUrl,at:new Date(now).toISOString(),fullRepricingRequired:true}};
+  delete body.sha256;return {...body,sha256:digest(body)};
 }
 export function freezeExperiment(input,now=Date.now()){
   if(Object.hasOwn(input,'sha256'))throw new Error('Registration input must not contain a prior digest');
@@ -13,13 +32,14 @@ export function freezeExperiment(input,now=Date.now()){
   if(!Array.isArray(input.pilotDates)||input.pilotDates.length!==10||input.pilotDates.some((d,i)=>d>=dates[0]||(i&&d<=input.pilotDates[i-1]))||input.pilotDates.at(-1)>new Date(now).toISOString().slice(0,10))throw new Error('Ten completed chronological pilot sessions required');
   for(const key of ['pilotReportSha256','dataContractSha256','calendarSha256'])if(!/^[a-f0-9]{64}$/.test(input[key]??''))throw new Error(`Missing ${key}`);
   if(!input.floatSource||!input.newsClassificationVersion||!input.feeVersion||input.operationalSignoff!==true)throw new Error('Data sources, fee convention and operational signoff required');
-  const registration={...input,version:1,frozenAt:new Date(now).toISOString(),codeSha256:momentumCodeHash(),status:'registered_not_validated'};
+  const registration={...input,version:2,feeScheduleHash:FEE_SCHEDULE_HASH,frozenAt:new Date(now).toISOString(),codeSha256:momentumCodeHash(),status:'registered_not_validated'};
   registration.sha256=createHash('sha256').update(JSON.stringify(registration)).digest('hex');return registration;
 }
 export function assessExperiment(primary,stress,registration){
   const {sha256,...body}=registration;
-  if(createHash('sha256').update(JSON.stringify(body)).digest('hex')!==sha256)throw new Error('Registration integrity mismatch');
+  verifyRegistration(registration);
   const reasons=[];
+  if(primary.replay?.feeScheduleHash!==registration.feeScheduleHash||stress.replay?.feeScheduleHash!==registration.feeScheduleHash)reasons.push('fee_schedule_requires_documented_amendment_and_full_repricing');
   if(primary.replay?.codeSha256!==registration.codeSha256||stress.replay?.codeSha256!==registration.codeSha256)reasons.push('code_changed_since_registration');
   if(primary.replay?.inputSha256!==stress.replay?.inputSha256)reasons.push('different_input_tapes');
   if(primary.replay?.scenario!=='primary_1000ms'||stress.replay?.scenario!=='stress_3500ms_one_tick')reasons.push('incorrect_scenarios');
@@ -30,7 +50,7 @@ export function assessExperiment(primary,stress,registration){
   }
   if(primary.portfolio.closedTrades.length<200)reasons.push('fewer_than_200_closed_trades');
   const days=primary.portfolio.days.map(d=>d.netUsd-registration.operatingCostPerSession);
-  if(!days.length||days.some(x=>!Number.isFinite(x)))throw new Error('Invalid daily P/L');
+  if(!days.length||days.some(x=>!Number.isFinite(x))||stress.portfolio.days.some(d=>!Number.isFinite(d.netUsd)))throw new Error('Invalid daily P/L');
   const netUsd=days.reduce((a,b)=>a+b,0),stressNetUsd=stress.portfolio.days.reduce((s,d)=>s+d.netUsd-registration.operatingCostPerSession,0);
   let state=239724;const random=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296;};const samples=[];
   for(let k=0;k<5000;k++){let total=0,n=0;while(n<days.length){const start=Math.floor(random()*Math.max(1,days.length-4));for(let j=0;j<5&&n<days.length;j++,n++)total+=days[(start+j)%days.length];}samples.push(total/days.length);}

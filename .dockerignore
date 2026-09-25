@@ -4,7 +4,8 @@ data
 backups
 .git
 deploy
-docs
+docs/*
+!docs/momentum-experiment-v0.json
 node_modules
 *.jsonl
 !fixtures/synthetic.jsonl

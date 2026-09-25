@@ -2,9 +2,12 @@ import { TradingChart, PnlChart } from './chart.js';
 import { OperationsView } from './operations.js';
 import { LiveQuotes } from './live.js';
 import { JevLog } from './jev-log.js';
+import { StrategyControlsView } from './strategy-controls.js';
+import { OptionsLabView } from './options-lab.js';
+import { DiscoveryView } from './discovery.js';
 let token = '', busy = false, selectedSymbol = '', selectedInterval = 1, latestStatus = null, latestChart = null, chartSequence = 0, selectedEvent = null;
 const $ = id => document.getElementById(id);
-const money = n => Number(n ?? 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+const money = n => n == null ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
 const number = n => Number(n ?? 0).toLocaleString('en-US', { maximumFractionDigits: 6 });
 const quotePrice = n => Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 4 });
 const time = t => new Date(t).toLocaleTimeString('en-US', { hour12: false });
@@ -20,6 +23,9 @@ const chart = new TradingChart($('price-chart'), $('chart-tooltip'), inspectEven
 const pnlChart = new PnlChart($('pnl-chart'), $('pnl-tooltip'));
 const operations = new OperationsView(api);
 const jevLog = new JevLog(api);
+const strategyControls = new StrategyControlsView(api);
+const optionsLab = new OptionsLabView(api);
+const discovery = new DiscoveryView();
 let lastStreamEvent = null, lastEventRefresh = 0, lastTimingRender = 0;
 const live = new LiveQuotes(frame => {
   if (!latestChart || frame.symbol !== selectedSymbol || String(frame.interval) !== String(selectedInterval)) return;
@@ -175,9 +181,10 @@ async function refresh() {
     if (!riskDirty && !riskSaving) { $('daily-loss-input').value = s.limits.dailyLoss; riskExpected = s.limits.dailyLoss; }
     $('risk-source').textContent = `${s.limits.dailyLossOverride ? 'Saved dashboard override' : 'Environment default'} · ${money(s.limits.dailyLoss)} active${s.limits.dailyLossHalted ? ' · HALTED FOR TODAY' : ''}. Changes persist across restarts.`;
     $('paper-test-panel').hidden = s.mode !== 'paper';
+    discovery.render(s);
     const universe = s.market.map(m => m.symbol);
     if ($('chart-symbol').dataset.universe !== universe.join(',')) {
-      if (!universe.includes(selectedSymbol)) selectedSymbol = universe[0];
+      if (!universe.includes(selectedSymbol)) {selectedSymbol = universe[0];live.stop();latestChart=null;selectedEvent=null;chart.clear();}
       $('chart-symbol').innerHTML = universe.map(symbol => `<option value="${escape(symbol)}">${escape(symbol)}</option>`).join('');
       $('chart-symbol').value = selectedSymbol; $('chart-symbol').dataset.universe = universe.join(',');
     }
@@ -195,19 +202,19 @@ async function refresh() {
       const q = m.quote, age = q ? (s.now - q.ts) / 1000 : null, diagnostic = s.diagnostics?.symbols.find(d => d.symbol === m.symbol);
       return `<tr><td><strong>${escape(m.symbol)}</strong></td><td>${q ? `${quotePrice(q.bid)} / ${quotePrice(q.ask)}` : '—'}</td><td>${q ? ((q.ask - q.bid) / q.ask * 10000).toFixed(1) + ' bps' : '—'}</td><td class="${diagnostic?.fresh ? '' : 'amber'}">${age === null ? '—' : age.toFixed(2) + 's'}</td><td>${escape(diagnostic?.reason ?? 'Waiting for context')}<small>${m.bars} completed bars</small></td><td>${m.features ? (m.features.ema9 > m.features.ema21 ? '↗ Rising' : '↘ Falling') : '—'}</td></tr>`;
     }).join('');
-    $('workers').innerHTML = s.workers.map(w => `<div class="worker"><div><strong>${escape(label(w.strategy))}</strong><small>${number(w.evaluated)} rule checks · ${number(w.matched)} matches · ${number(w.noSetup)} no setup · ${w.pending} queued</small></div><span class="${w.alive ? 'positive' : 'negative'}">${w.alive ? 'RUNNING' : 'STOPPED'}</span></div>`).join('');
+    $('workers').innerHTML = s.workers.map(w => `<div class="worker"><div><strong>${escape(label(w.strategy))}</strong><small>${number(w.evaluated)} rule checks · ${number(w.matched)} matches · ${number(w.noSetup)} no setup · ${w.pending} queued</small></div><span class="${w.enabled === false ? 'muted' : w.alive ? 'positive' : 'negative'}">${w.enabled === false ? 'OFF' : w.alive ? 'RUNNING' : 'STOPPED'}</span></div>`).join('');
     $('gates').innerHTML = `<div class="gate"><span>Account & reconciliation</span><span class="${s.ready ? 'positive' : 'amber'}">${s.ready ? 'CLEAR' : 'BLOCKED'}</span></div><div class="gate"><span>Operator permission</span><span>${s.paused ? 'PAUSED' : 'ENABLED'}</span></div><div class="gate"><span>Daily loss ceiling · ${escape(s.limits.scope ?? 'account')}</span><span>${money(s.limits.dailyLoss)}</span></div>` + s.issues.map(i => `<div class="amber">${escape(label(i))}</div>`).join('');
     $('feeds').textContent = Object.entries(s.feeds).map(([k, v]) => `${k}: ${label(v.status)}${v.providerAgeMs != null ? ` · last received ${v.lastKind} timestamp ${new Date(v.providerTimestamp).toLocaleString()} (${(v.providerAgeMs / 1000).toFixed(1)}s behind receipt)` : ''}`).join(' · ');
     $('positions-count').textContent = `${s.positions.length} positions`;
     const micro = (s.microstructure ?? []).filter(m => m.observations);
     $('microstructure').innerHTML = micro.map(m => `<tr><td>${escape(m.symbol)}</td><td>${(m.imbalance * 100).toFixed(1)}%</td><td>${m.normalizedOfi.toFixed(2)}</td><td>${m.micropriceSkewBps.toFixed(2)} bps</td><td>${m.observations}</td></tr>`).join('') || empty(5, 'Waiting for fresh quotes with bid and ask sizes. Synthetic bars are insufficient.');
     $('pairs').innerHTML = (s.pairs ?? []).map(p => `<div class="worker"><div><strong>${escape(p.pair)}</strong><small>Prior-window beta ${p.beta.toFixed(3)}</small></div><span class="${Math.abs(p.zscore) >= 2 ? 'amber' : 'muted'}">z ${p.zscore.toFixed(2)}</span></div>`).join('') || '<p class="muted">Requires 61 aligned one-minute observations.</p>';
-    $('positions').innerHTML = s.positions.map(p => `<tr><td>${escape(p.symbol)}</td><td>${number(p.qty)}</td><td>${money(p.entryPrice)}</td><td>${money(p.marketValue)}</td><td class="${p.unrealized >= 0 ? 'positive' : 'negative'}">${money(p.unrealized)}</td><td>${escape(p.management?.exitReason ? label(p.management.exitReason) : p.management ? 'Monitoring' : 'External / unmanaged')}</td></tr>`).join('') || empty(6, 'No positions. Waiting for qualified entries.');
+    $('positions').innerHTML = s.positions.map(p => `<tr><td>${escape(p.symbol)}</td><td>${number(p.qty)}</td><td>${money(p.entryPrice)}</td><td>${money(p.marketValue)}</td><td class="${p.unrealized >= 0 ? 'positive' : 'negative'}">${money(p.unrealized)}</td><td>${escape(p.management?.exitReason ? label(p.management.exitReason) : p.management ? 'Monitoring' : 'External / unmanaged')}${p.management?.excursion?`<small>Observed peak net: ${money(p.management.excursion.peakNet)} · profit trigger: ${p.management.excursion.floor?quotePrice(p.management.excursion.floor):'not armed'}</small>`:''}</td></tr>`).join('') || empty(6, 'No positions. Waiting for qualified entries.');
     $('candidates').innerHTML = s.candidates.map(c => `<tr><td>${time(c.ts)}</td><td>${escape(c.symbol)}<small>${escape(label(c.strategy))}</small></td><td class="${c.status === 'approved' ? 'positive' : 'muted'}">${escape(c.status)}</td><td>${c.model?.quality != null ? `${Math.round(c.model.quality * 100)} / 100 · ${escape(c.model.regime)}` : escape(c.model?.error ?? c.model?.mode ?? 'pending')}</td><td>${escape(label(c.reason ?? 'allocation accepted'))}</td></tr>`).join('') || empty(5, 'No setup has qualified yet. Warming up and observing is normal.');
     $('events').innerHTML = s.events.slice(0, 18).map(e => `<div class="event"><time>${time(e.ts)}</time><p>${escape(label(e.type))}<small class="muted"> ${escape(e.data.reason ?? e.data.action ?? e.data.symbol ?? '')}</small></p></div>`).join('');
     $('orders').innerHTML = s.orders.map(o => `<tr><td>${time(o.ts)}</td><td>${escape(o.symbol)}</td><td>${escape(o.kind)}</td><td>${number(o.qty)} / ${number(o.filledQty)}</td><td class="${['unknown', 'submitting'].includes(o.status) ? 'amber' : ''}">${escape(label(o.status))}</td><td class="code">${escape(o.id)}</td></tr>`).join('') || empty(6, 'No order intents recorded.');
     $('updated').textContent = `Updated ${time(Date.now())} · Broker sync ${s.lastReconcile ? time(s.lastReconcile) : 'pending'}`;
-    await Promise.all([refreshChart(), refreshPerformance(), refreshResearch(), operations.refresh(s, selectedSymbol), jevLog.refresh(s)]);
+    await Promise.all([refreshChart(), refreshPerformance(), refreshResearch(), strategyControls.refresh(s), optionsLab.refresh(), operations.refresh(s, selectedSymbol), jevLog.refresh(s)]);
   } catch (e) { $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; }
   finally { busy = false; }
 }
@@ -220,7 +227,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
   catch (e) { $('action-message').textContent = e.message; }
   finally { button.disabled = false; }
 }));
-$('disconnect').addEventListener('click', () => { token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; lastPerformance = 0; riskDirty = false; chart.clear(); pnlChart.clear(); performanceSequence++; performanceScopeSet = false; operations.clear(); jevLog.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
+$('disconnect').addEventListener('click', () => { token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; lastPerformance = 0; riskDirty = false; chart.clear(); pnlChart.clear(); performanceSequence++; performanceScopeSet = false; operations.clear(); jevLog.clear(); strategyControls.clear(); optionsLab.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
 $('chart-symbol').addEventListener('change', () => { selectedSymbol = $('chart-symbol').value; live.stop(); latestChart = null; selectedEvent = null; $('trade-detail').innerHTML = '<p>Select a signal, order, or fill.</p>'; chart.clear(); void refreshChart(); });
 document.querySelectorAll('[data-interval]').forEach(b => b.addEventListener('click', () => { selectedInterval = b.dataset.interval.endsWith('s') ? b.dataset.interval : Number(b.dataset.interval); live.stop(); latestChart = null; chart.clear(); document.querySelectorAll('[data-interval]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); void refreshChart(); }));
 $('chart-signals').addEventListener('change', e => { chart.showSignals = e.target.checked; chart.draw(); });

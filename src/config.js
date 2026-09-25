@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { hash } from './util.js';
-import { STRATEGIES, SESSION_STRATEGIES } from './strategies.js';
+import { DEFAULT_STRATEGIES, strategyDefinition } from './strategy-registry.js';
 
 export function config(env = process.env) {
   const str = (k, d = '') => (env[k] ?? d).trim();
@@ -28,13 +28,29 @@ export function config(env = process.env) {
     liveAck: str('LIVE_ACK'), expectedAccount: str('EXPECTED_ACCOUNT_ID'), cryptoAck: str('LIVE_CRYPTO_ACK'),
     demoInterval: num('DEMO_INTERVAL_MS', 1000, 50, 60000), retentionDays: num('RETENTION_DAYS', 30, 1, 365),
     heartbeatUrl: str('HEARTBEAT_URL'),
-    strategies: str('STRATEGIES', STRATEGIES.join(',')).split(',').map(s => s.trim()).filter(Boolean),
+    backupDir: str('BACKUP_EXPORT_DIR'), operatingCostPerDay: str('OPERATING_COST_PER_DAY_USD') === '' ? null : num('OPERATING_COST_PER_DAY_USD',0,0,100000),
+    strategies: str('STRATEGIES', DEFAULT_STRATEGIES.join(',')).split(',').map(s => s.trim()).filter(Boolean),
     quoteScanMs: num('QUOTE_SCAN_MS', 250, 100, 5000),
     cryptoMaxHold: num('CRYPTO_MAX_HOLD_MINUTES', 180, 5, 1440) * 60000,
     // Noise-area session strategy: one symbol, fixed notional, far protective stop (software exits do the work).
     noiseSymbol: str('NOISE_AREA_SYMBOL', 'QQQ'), noiseNotional: num('NOISE_AREA_NOTIONAL_USD', 1500, 1, 100000),
     noiseStopBps: num('NOISE_AREA_STOP_BPS', 150, 20, 1000),
+    breakoutProtection: str('BREAKOUT_PROTECTION', 'on') === 'on',
+    breakoutArmR: num('BREAKOUT_ARM_R', 1, .5, 5), breakoutTrailR: num('BREAKOUT_TRAIL_R', .75, .1, 5),
+    breakoutNoProgress: num('BREAKOUT_NO_PROGRESS_MINUTES', 15, 5, 120) * 60000,
+    breakoutMinRewardRisk: num('BREAKOUT_MIN_NET_REWARD_RISK', 1, .1, 5),
   };
+  if (!['on','off'].includes(str('BREAKOUT_PROTECTION','on'))) throw new Error('Invalid BREAKOUT_PROTECTION');
+  c.universe = { mode: str('EQUITY_UNIVERSE', c.mode === 'demo' ? 'static' : 'all'),
+    refreshMs: num('UNIVERSE_REFRESH_SECONDS', 300, 120, 3600) * 1000,
+    streamLimit: num('UNIVERSE_STREAM_LIMIT', c.feed === 'iex' ? 30 : 60, 1, c.feed === 'iex' ? 30 : 200),
+    candidateLimit: num('UNIVERSE_CONTEXT_LIMIT', 80, 1, 200), minPrice: num('UNIVERSE_MIN_PRICE', 2, .01, 10000),
+    maxPrice: num('UNIVERSE_MAX_PRICE', 2000, .01, 100000), minDailyDollarVolume: num('UNIVERSE_MIN_DAILY_DOLLARS', 5000000, 0, 1e12),
+    minMinuteDollarVolume: num('UNIVERSE_MIN_MINUTE_DOLLARS', 50000, 0, 1e12), minDwellMs: num('UNIVERSE_MIN_DWELL_MINUTES', 15, 0, 120) * 60000 };
+  if (!['all','static'].includes(c.universe.mode) || c.universe.minPrice > c.universe.maxPrice ||
+      !Number.isInteger(c.universe.streamLimit) || !Number.isInteger(c.universe.candidateLimit)) throw new Error('Invalid universe policy');
+  if (!/^[A-Z][A-Z0-9.]{0,9}$/.test(c.noiseSymbol)) throw new Error('Invalid NOISE_AREA_SYMBOL');
+  if (c.mode === 'demo' && c.universe.mode !== 'static') throw new Error('Demo uses a static synthetic universe');
   if (!['demo', 'shadow', 'paper', 'live'].includes(c.mode)) throw new Error('Invalid MODE');
   if (!['dedicated', 'shared'].includes(c.accountPolicy)) throw new Error('Invalid ACCOUNT_POLICY');
   if (c.mode === 'live' && c.accountPolicy === 'shared') throw new Error('Shared account support is currently available for paper and local simulation modes only');
@@ -42,11 +58,11 @@ export function config(env = process.env) {
   if (!['iex', 'sip'].includes(c.feed) || !['us', 'us-1'].includes(c.cryptoLocation)) throw new Error('Invalid market feed');
   if (c.token.length < 32 || c.token.startsWith('replace-')) throw new Error('Set a random DASHBOARD_TOKEN of at least 32 characters (see README)');
   if (!c.equities.every(s => /^[A-Z][A-Z0-9.]{0,9}$/.test(s)) || !c.crypto.every(s => ['BTC/USD', 'ETH/USD'].includes(s))) throw new Error('Invalid symbol universe');
-  if (!c.equities.length && !c.crypto.length) throw new Error('Empty universe');
-  if (!c.strategies.length || new Set(c.strategies).size !== c.strategies.length || !c.strategies.every(s => STRATEGIES.includes(s) || SESSION_STRATEGIES.includes(s))) throw new Error('Invalid STRATEGIES');
+  if (!c.equities.length && !c.crypto.length && c.universe.mode === 'static') throw new Error('Empty universe');
+  if (new Set(c.strategies).size !== c.strategies.length || !c.strategies.every(s => strategyDefinition(s))) throw new Error('Invalid STRATEGIES');
   if (c.strategies.includes('noise_area')) {
     if (c.mode === 'demo') throw new Error('noise_area needs provider sessions and history; use shadow, paper or live');
-    if (!c.equities.includes(c.noiseSymbol)) throw new Error('NOISE_AREA_SYMBOL must be listed in EQUITY_SYMBOLS');
+    if (c.universe.mode==='static' && !c.equities.includes(c.noiseSymbol)) throw new Error('NOISE_AREA_SYMBOL must be listed in EQUITY_SYMBOLS');
     if (c.noiseNotional > c.maxGroup || c.noiseNotional > c.maxGross) throw new Error('NOISE_AREA_NOTIONAL_USD exceeds MAX_GROUP_USD or MAX_GROSS_USD');
   }
   if (c.equities.length > (c.feed === 'iex' ? 30 : 100)) throw new Error('Universe exceeds configured feed limit');

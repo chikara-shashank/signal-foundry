@@ -9,7 +9,7 @@ const latencySummary = values => {
 
 export function buildReport(store, cfg) {
   const candidates = store.db.prepare('SELECT data FROM candidates ORDER BY ts').all().map(x => JSON.parse(x.data));
-  const orders = store.orders(), { trades, strategies, note } = tradeScorecard(orders, cfg);
+  const orders = store.orders(), { trades, strategies, note, exceptions, pnlAvailable } = tradeScorecard(orders, cfg);
   const closedTrades = trades.filter(t => t.fullyClosed), costs = trades.reduce((s, t) => s + t.estimatedFees, 0);
   const modelRows = candidates.filter(c => c.model?.quality != null);
   const rejectionCounts = {};
@@ -24,7 +24,7 @@ export function buildReport(store, cfg) {
   }
   return { generatedAt: new Date().toISOString(), mode: cfg.mode, configFingerprint: cfg.fingerprint, candidateCount: candidates.length, orderCount: orders.length,
     closedTradeCount: closedTrades.length, grossPnl: trades.reduce((s, t) => s + t.grossPnl, 0), estimatedFees: costs,
-    estimatedNetPnl: trades.reduce((s, t) => s + t.estimatedNetPnl, 0), winRate: closedTrades.length ? closedTrades.filter(t => t.estimatedNetPnl > 0).length / closedTrades.length : null,
+    exceptions, pnlAvailable, estimatedNetPnl: pnlAvailable ? trades.reduce((s, t) => s + t.estimatedNetPnl, 0) : null, winRate: closedTrades.length ? closedTrades.filter(t => t.estimatedNetPnl > 0).length / closedTrades.length : null,
     recordedDailyDrawdownUsd: maxDrawdown, scope, strategies, equity, openPositions: store.get('lastAccountSnapshot', { positions: [] }).positions,
     model: { evaluated: modelRows.length, passed: modelRows.filter(c => c.model.pass).length, estimatedOrReportedCost: candidates.reduce((s, c) => s + (c.model?.cost ?? 0), 0) },
     latencyMs: { workerBatch: latencySummary(candidates.map(c => c.workerLatencyMs)), model: latencySummary(candidates.map(c => c.model?.latencyMs)), orderSubmission: latencySummary(orders.map(o => o.submissionLatencyMs)), note: 'Submission duration includes the adapter request, not exchange fill latency. Replay uses inline strategy evaluation, not worker threads.' },

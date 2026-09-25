@@ -1,6 +1,6 @@
 // Walk-forward research backtest of the bar strategies on Alpaca historical bars.
 // Signals come from the production Features and assess() code; entries, exits and
-// costs follow the live gates. Short variants apply the same rules to the
+// costs are bar approximations, not live execution parity. Short variants apply the same rules to the
 // reciprocal price series (mirrored rules), which the live engine cannot trade yet.
 //
 // node --env-file-if-exists=.env scripts/backtest.js --from 2026-03-23 --to 2026-09-23 --split 2026-07-23 \
@@ -184,13 +184,14 @@ for (const asset of ['equity', 'crypto']) for (const strategy of BAR_STRATEGIES)
   const chosen = eligible.sort((a, b) => b.is.tStat - a.is.tStat)[0] ?? null;
   const production = side === 'long' ? variants.find(v => v.hold === PRODUCTION[asset].hold && v.target === PRODUCTION[asset].target) : null;
   const promotable = !!chosen && chosen.is.meanNetBps > 0 && chosen.oos.n >= 20 && chosen.oos.meanNetBps > 0 && chosen.all.tStat >= 2;
-  rows.push({ asset, strategy, side, variantsTested: variants.length, production, chosen, promotable });
+  rows.push({ asset, strategy, side, variantsTested: variants.length, production, chosen, exploratoryScreenPassed:promotable, promotable:false });
 }
 const baselineRows = [...baseline.entries()].map(([k, v]) => { const [asset, side, hold, period] = k.split('|'); return { asset, side, hold, period, ...stats(v) }; });
 const report = {
+  liveEligible:false, evidenceClass:'exploratory_independent_bar_paths',
   generatedAt: new Date().toISOString(), period: { from: new Date(FROM).toISOString(), to: new Date(TO).toISOString(), outOfSampleFrom: new Date(SPLIT).toISOString() },
   universe: { equities: EQUITIES, crypto: CRYPTO }, costs: { slippageBpsPerSide: SLIP, equityFeeBpsPerSide: EQUITY_FEE, cryptoFeeBpsPerSide: CRYPTO_FEE, spreadsBps: Object.fromEntries([...EQUITIES, ...CRYPTO].map(s => [s, +spreadFor(s).toFixed(2)])) },
-  rule: 'Variant chosen by in-sample t-statistic (n>=30). Promotable only if in-sample and out-of-sample mean net > 0, out-of-sample n >= 20 and pooled t >= 2.',
+  rule: 'Variant chosen by in-sample t-statistic (n>=30). Legacy promotable flags are exploratory screen results only: no live qualification, portfolio replay, exchange calendar or prospective registration is established by this report.',
   limitations: ['1-minute bars: intrabar order of stop and target is unknown, so stop is assumed first.', 'Entry at the next bar open plus half the median quoted spread and slippage; no queue or impact model.', 'Short variants mirror the long rules on reciprocal prices; borrow availability and fees are not modeled.', 'Selection among many variants inflates in-sample results; only the untouched out-of-sample column is evidence.'],
   strategies: rows, baseline: baselineRows, gated,
 };

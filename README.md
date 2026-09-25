@@ -1,5 +1,12 @@
 # Signal Foundry
 
+Version 1.11 adds [full-universe equity discovery and breakout profit protection](docs/BREAKOUT-DISCOVERY.md). Provider runs screen all eligible listed stocks and ETFs, rotate a bounded streaming shortlist, and retain subscriptions for owned positions. New range-breakout and failed-breakout entries get versioned profit, invalidation and no-progress exits. These are forward paper experiments; the older losing results are retained separately by experiment version.
+
+Version 1.8 adds persistent per-strategy switches and a **Strategies & results**
+panel with realized net P/L, win rate, closed trades and separate open P/L.
+Installed strategies can be enabled without restarting; switching off preserves
+exit management and historical results. See [strategy controls and extension guide](docs/STRATEGY-CONTROLS.md).
+
 The opt-in [small-cap momentum research lane](docs/MOMENTUM-RESEARCH.md) adds point-in-time screening, causal pullback replay, capital/settlement constraints and prospective validation gates. Run it through `research:momentum`; it is broker-free and is not enabled by `npm start`.
 
 A local-first, autonomous price-action and quant research system for US stocks/ETFs and BTC/ETH spot. Six strategy worker threads share one portfolio authority. Jev evaluates setup coherence, market context, and contextual quality. Every order has a durable journal and risk checks.
@@ -135,3 +142,7 @@ Known gaps:
 ## Jev decision-mode review
 
 See [the v1.6 robustness review](docs/ROBUSTNESS-v1.6.md) for the revised five-minute crypto profile, IOC entries, request budgeting, strategy economics and forward Jev outcome measurements. The [earlier Jev review](docs/JEV-TRADING-REVIEW.md) explains the classifier's limitations. Neither release establishes profitable trading or exchange-grade HFT.
+Options research is available in v1.9.0: three independently switchable, defined-risk spread hypotheses, OPRA/SIP collection, a separate hypothetical ledger, delayed bid/ask replay and frozen experiment hashes. No options orders are sent to Alpaca. See [research, rules, limitations and commands](docs/OPTIONS-RESEARCH.md). Options controls start off and require paper/shadow mode plus the relevant data access; existing stock strategy controls are unchanged.
+# v1.10 audit remediation
+
+See [the remediation and deployment guide](docs/AUDIT-REMEDIATION.md) for request-budget protection, durable execution incidents, version-filtered strategy results, broker-activity accounting, recovery tools and the remaining research/execution gaps. `scripts/deploy-paper.ps1` preserves the approved $2,000 paper daily-loss limit and verifies the new release before resuming entries. This release does not qualify any strategy for live trading or connect options broker orders.

@@ -25,11 +25,12 @@ export function sizeEntry(c, q, account, positions, pending, cfg, asset, now, se
     targetDistanceBps: (target / limit - 1) * 10000, netRewardRisk: (target - limit - costPerUnit) / (limit - stop + costPerUnit),
     breakEvenWinRate: (limit - stop + costPerUnit) / (target - stop) };
   if (target - limit < 2 * costPerUnit) return { ...deny('reward_does_not_clear_cost_buffer'), economics };
+  if (!crypto && ['range_breakout','failed_breakout'].includes(c.strategy) && economics.netRewardRisk < cfg.breakoutMinRewardRisk) return { ...deny('breakout_reward_risk_after_costs'), economics };
   const gross = positions.reduce((s, p) => s + Math.abs(p.marketValue), 0);
   const reserved = pending.filter(o => o.kind === 'entry').reduce((s, o) => s + o.reserved, 0);
   const group = positions.filter(p => isCrypto(p.symbol) === crypto).reduce((s, p) => s + Math.abs(p.marketValue), 0) + pending.filter(o => o.kind === 'entry' && isCrypto(o.symbol) === crypto).reduce((s, o) => s + o.reserved, 0);
   // Other strategies leave the session strategy's notional free while it is flat, so it is never crowded out.
-  const noiseFlat = cfg.strategies?.includes('noise_area') && !positions.some(p => p.symbol === cfg.noiseSymbol) && !pending.some(o => o.symbol === cfg.noiseSymbol);
+  const noiseFlat = cfg.noiseReservationEligible !== false && cfg.strategies?.includes('noise_area') && !positions.some(p => p.symbol === cfg.noiseSymbol) && !pending.some(o => o.symbol === cfg.noiseSymbol);
   const headroom = noiseFlat && c.strategy !== 'noise_area' ? cfg.noiseNotional : 0;
   const capacity = Math.min(c.sizing?.notional ?? cfg.maxPosition, cfg.maxGross - gross - reserved - headroom, cfg.maxGroup - group - (crypto ? 0 : headroom), cfg.capital - gross - reserved - headroom, account.cash - reserved, account.buyingPower - reserved);
   // Fixed-notional sizing when the strategy's exits are not a fixed stop distance; otherwise the per-trade stop-risk budget.

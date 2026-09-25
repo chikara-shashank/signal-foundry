@@ -8,6 +8,13 @@ import { Observability } from './observability.js';
 import { Realtime } from './realtime.js';
 import { Portfolio, quantityTolerance } from './portfolio.js';
 import { SignalOutcomes, tradeScorecard } from './research.js';
+import { StrategyControls } from './strategy-controls.js';
+import { QUOTE_STRATEGIES } from './strategy-registry.js';
+import { updateIncidents, protectionHealth } from './execution-incidents.js';
+import { strategyManifest, qualification } from './strategy-manifest.js';
+import { Accounting } from './accounting.js';
+import { RELEASE } from './release.js';
+import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
 import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar, quoteOrder, faultDetail } from './util.js';
 
 export class Engine {
@@ -20,10 +27,14 @@ export class Engine {
   quoteHistory = new Map();
   microstructure = new Microstructure(); quoteScans = new Map(); quoteBusy = new Set(); pairs = new Map();
   cryptoFeatures = new Features(5); cryptoContextStatus = { state: 'warming', intervalMs: 300000 };
+  cryptoExitQueued = new Set(); orderRefreshAt = new Map(); dirtyOrderSymbols = new Set();
+  exitEntries = new Map();
+  protection = { state: 'starting', observedAt: 0, reason: null };
   constructor(cfg, store, broker, workers, clock = () => Date.now()) {
     Object.assign(this, { cfg, store, broker, workers, clock });
     this.jev = new Jev(cfg, store); this.operatorPause = store.get('operatorPause', false);
     this.managed = store.get('managed', {}); this.lastEntry = store.get('lastEntry', {});
+    this.exitTriggers = store.get('exitTriggers', {});
     this.feeds = {}; this.startedAt = Date.now();
     this.observability = new Observability(this);
     this.realtime = new Realtime(this);
@@ -32,6 +43,8 @@ export class Engine {
     if (!Number.isFinite(this.dailyLossLimit) || this.dailyLossLimit < 1 || this.dailyLossLimit > 100000) throw new Error('Invalid saved daily loss ceiling');
     this.portfolio = new Portfolio(this);
     this.outcomes = new SignalOutcomes(this);
+    this.strategyControls = new StrategyControls(this);
+    this.accounting = new Accounting(this);
   }
   async init() {
     this.store.lease(Date.now());
@@ -39,11 +52,18 @@ export class Engine {
     if (this.cfg.mode === 'live' && a.id !== this.cfg.expectedAccount) throw new Error('Live account ID mismatch');
     const identity = `${this.cfg.mode}:${a.id}`;
     if (this.store.get('identity', identity) !== identity) throw new Error('Database belongs to another mode/account');
+    for (const trigger of Object.values(this.exitTriggers)) {
+      const owned = this.managed[trigger.symbol];
+      if (owned?.entryId === trigger.entryId) owned.exitReason ||= trigger.reason;
+    }
+    this.store.transaction(()=>{this.store.set('managed',this.managed);this.store.set('exitTriggers',{});});this.exitTriggers={};
     this.store.set('identity', identity);
+    this.store.set('strategySettings', this.strategyControls.state);
     this.store.recoverModelTraces(this.clock());
     if (this.store.get('cashAnchor') === null) this.store.set('cashAnchor', a.cash - this.cashFlow(this.store.orders()));
     this.assets = await this.broker.assets();
-    for (const symbol of this.cfg.symbols) if (!this.assets.get(symbol)?.tradable) throw new Error(`Asset unavailable: ${symbol}`);
+    this.universe?.validateRestoredAssets();
+    for (const symbol of this.cfg.symbols) if (!this.assets.get(symbol)?.tradable && !this.managed[symbol]) throw new Error(`Asset unavailable: ${symbol}`);
     for (const o of this.store.orders()) if (o.status === 'reserved') { o.status = 'aborted'; this.store.order(o); }
     for (const s of this.cfg.symbols) for (const b of this.store.bars(s)) {
       const f = this.features.add(b, this.clock());
@@ -57,6 +77,7 @@ export class Engine {
     }
   }
   onQuote(q) {
+    if(this.stopped)return;
     if (!this.cfg.symbols.includes(q.symbol)) return;
     if (!validateQuote(q, this.clock(), this.cfg.maxQuoteAge)) {
       const reason = !Number.isFinite(q.ts) ? 'invalid_quote_timestamp' : q.ts > this.clock() + 1000 ? 'quote_timestamp_in_future'
@@ -68,8 +89,25 @@ export class Engine {
     this.quotes.set(q.symbol, q);
     this.outcomes.quote(q, this.clock());
     const owned = this.managed[q.symbol];
-    if (isCrypto(q.symbol) && owned && !owned.exitReason && !this.externalSymbols.has(q.symbol) && (q.bid <= owned.stop || q.bid >= owned.target) && !this.cryptoExitQueued) {
-      this.cryptoExitQueued = true;
+    if (owned && !this.externalSymbols.has(q.symbol)) {
+      const entry = this.exitEntries.get(owned.entryId) ?? this.store.getOrder(owned.entryId);
+      if (entry) {
+        this.exitEntries.set(entry.id, entry);
+        const beforeArmed = owned.excursion?.armedAt, reason = observeBreakout(owned, entry, q, this.clock(), this.positions.find(p=>p.symbol===q.symbol)?.qty ?? entry.filledQty);
+        if (owned.excursion && (!owned.excursion.persistedAt || this.clock() - owned.excursion.persistedAt >= 1000 || beforeArmed !== owned.excursion.armedAt || reason)) {
+          this.store.assertLease(); owned.excursion.persistedAt = this.clock();
+          this.store.set('managed', this.managed);
+          entry.excursion = { ...owned.excursion }; this.store.order(entry);
+        }
+        if (reason) this.latchExit(q.symbol, owned.entryId, reason, { quoteTs: q.ts, bid: q.bid, floor: owned.excursion?.floor });
+      }
+    }
+    const triggerKey = owned ? `${q.symbol}:${owned.entryId}` : null;
+    if (isCrypto(q.symbol) && owned && !owned.exitReason && !this.externalSymbols.has(q.symbol) && (q.bid <= owned.stop || q.bid >= owned.target) && !this.cryptoExitQueued.has(triggerKey)) {
+      this.store.assertLease();
+      this.exitTriggers[triggerKey] = { symbol: q.symbol, entryId: owned.entryId, reason: q.bid <= owned.stop ? 'stop' : 'target', quoteTs: q.ts };
+      this.store.set('exitTriggers', this.exitTriggers);
+      this.cryptoExitQueued.add(triggerKey);
       void this.mutex.run(() => {
         const current = this.managed[q.symbol];
         if (current?.entryId === owned.entryId && !this.externalSymbols.has(q.symbol)) {
@@ -77,7 +115,8 @@ export class Engine {
           this.store.set('managed', this.managed);
           this.store.event('exit_trigger', { symbol: q.symbol, reason: current.exitReason, quoteTs: q.ts, bid: q.bid }, this.clock());
         }
-      }).then(() => this.scheduleReconcile()).catch(() => this.fail('exit_trigger_failed')).finally(() => { this.cryptoExitQueued = false; });
+        delete this.exitTriggers[triggerKey]; this.store.set('exitTriggers', this.exitTriggers);
+      }).then(() => this.scheduleReconcile()).catch(() => this.fail('exit_trigger_failed')).finally(() => { this.cryptoExitQueued.delete(triggerKey); });
     }
     this.realtime.quote(q);
     this.observability.quote(q, true);
@@ -89,23 +128,27 @@ export class Engine {
     this.quoteHistory.set(q.symbol, history);
     const micro = this.microstructure.add(q), now = this.clock(), base = this.snapshots.get(q.symbol);
     let scan = Promise.resolve();
-    if (!isCrypto(q.symbol) && micro && base && now - (base.bar.ts + 60000) < 90000 && this.cfg.strategies.includes('order_flow_continuation') &&
+    if (!isCrypto(q.symbol) && micro && base && now - (base.bar.ts + 60000) < 90000 && QUOTE_STRATEGIES.some(s => this.strategyControls.enabled(s)) &&
         now - (this.quoteScans.get(q.symbol) ?? 0) >= this.cfg.quoteScanMs && !this.quoteBusy.has(q.symbol) && this.pendingCandidates < 100 &&
         now - (this.lastEntry[q.symbol] ?? 0) >= this.cfg.cooldown) {
       this.quoteScans.set(q.symbol, now); this.quoteBusy.add(q.symbol);
       const f = { ...base, barVersion: base.version, version: `${base.version}:${Math.floor(now / this.cfg.quoteScanMs)}`, micro };
-      scan = this.processCandidates(f, ['order_flow_continuation']).finally(() => this.quoteBusy.delete(q.symbol));
+      scan = this.processCandidates(f, QUOTE_STRATEGIES).finally(() => this.quoteBusy.delete(q.symbol));
     }
     // Simulator transitions share the same account coordinator as real orders.
     if (this.broker.onQuote) this.mutex.run(() => this.broker.onQuote(q)).catch(() => this.fail('simulation_error'));
     return scan;
   }
   async onBar(b, warmup = false) {
-    if (!validBar(b)) return;
+    if(this.stopped)return;
+    if (!validBar(b) || !this.cfg.symbols.includes(b.symbol)) return;
     if (!warmup && this.stockHistory && !isCrypto(b.symbol)) await this.stockHistory.repair(b);
+    if(this.stopped)return;
     const now = this.clock(), f = this.features.add(b, now);
     if (b.ts + 60000 > now + 1000) return;
     if (!this.store.bar(b)) return;
+    const owned = this.managed[b.symbol], entry = owned && this.store.getOrder(owned.entryId);
+    if (!warmup && entry && breakoutInvalidated(entry, b, now)) this.latchExit(b.symbol, entry.id, 'breakout_invalidated', { barTs: b.ts, close: b.close });
     // Crypto execution context comes from authoritative 5m provider bars.
     // Minute bars remain available to charts; gaps are never forward-filled.
     if (isCrypto(b.symbol) && this.cfg.mode !== 'demo') return;
@@ -149,7 +192,18 @@ export class Engine {
     if (!warmup && latest.version !== prior && now - (latest.bar.ts + 300000) <= 20000 && this.pendingCandidates < 100) await this.processCandidates(latest, BAR_STRATEGIES);
   }
   onTrade(t) { this.realtime.trades.apply(t, this.clock()); }
+  latchExit(symbol, entryId, reason, observation) {
+    const m = this.managed[symbol];
+    if (!m || m.entryId !== entryId || m.exitReason || this.externalSymbols.has(symbol)) return;
+    this.store.assertLease(); m.exitReason = reason;
+    this.store.transaction(() => {
+      this.store.set('managed', this.managed);
+      this.store.event('exit_trigger', { symbol, entryId, reason, ...observation }, this.clock());
+    });
+    this.scheduleReconcile();
+  }
   onBrokerUpdate(update) {
+    if (update.symbol) this.dirtyOrderSymbols.add(update.symbol);
     this.store.event('broker_update', update, this.clock()); this.realtime.eventVersion++;
     this.scheduleReconcile();
   }
@@ -166,14 +220,20 @@ export class Engine {
     }
   }
   async processCandidates(f, strategies) {
+    if(this.stopped)return;
     const now = this.clock();
     this.pendingCandidates++;
     try {
       const started = performance.now();
-      const candidates = await this.workers.evaluate(f, now, strategies.filter(s => this.cfg.strategies.includes(s)));
+      const selected = strategies.filter(s => this.strategyControls.enabled(s));
+      if (!selected.length) return;
+      const generations = new Map(selected.map(s => [s, this.strategyControls.generation(s)]));
+      const candidates = await this.workers.evaluate(f, now, selected);
+      if(this.stopped)return;
       const workerLatencyMs = performance.now() - started;
       for (const c of candidates) {
         c.workerLatencyMs = workerLatencyMs;
+        c.strategyGeneration = generations.get(c.strategy) ?? -1;
         c.config = this.cfg.fingerprint;
         if (!this.store.candidate(c)) continue;
         this.observability.counts.candidates++;
@@ -181,6 +241,7 @@ export class Engine {
         const preflight = await this.mutex.run(() => this.checkEntry(c));
         c.preflight = preflight;
         c.model = await this.jev.evaluate(c, this.clock(), preflight.ok ? null : preflight.reason);
+        if(this.stopped)return;
         this.outcomes.start(c);
         if (c.model.requested) this.realtime.timings.jev.add(c.model.latencyMs);
         this.store.event('model_result', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, mode: this.cfg.jevMode,
@@ -191,12 +252,13 @@ export class Engine {
         if (this.cfg.jevMode === 'filter' && !c.model.pass) { this.reject(c, c.model.error ?? 'model_filter'); continue; }
         await this.mutex.run(() => this.enter(c));
       }
-    } catch { this.fail('strategy_worker_failure'); }
+    } catch { if(!this.stopped)this.fail('strategy_worker_failure'); }
     finally { this.pendingCandidates--; }
   }
   // Engine-thread session strategies share every entry check with the bar strategies.
   // Jev is not consulted: its rubric defines no setup for them.
   async submitCandidate(c) {
+    c.strategyGeneration ??= this.strategyControls.generation(c.strategy);
     c.config = this.cfg.fingerprint;
     if (!this.store.candidate(c)) return;
     this.observability.counts.candidates++;
@@ -219,6 +281,11 @@ export class Engine {
     const now = this.clock();
     if (this.timebase && !this.timebase.status().synchronized) return deny('clock_not_synchronized');
     const paperTest = c.strategy === 'operator_paper_test';
+    if (!this.cfg.symbols.includes(c.symbol)) return deny('symbol_left_universe');
+    if (this.universe && !this.universe.entryReady(now)) return deny('universe_scan_stale');
+    if (this.cfg.mode === 'live' && !qualification(this, c.strategy).liveEligible) return deny('strategy_not_live_qualified');
+    if (!paperTest && !this.strategyControls.enabled(c.strategy)) return deny('strategy_disabled');
+    if (!paperTest && (c.strategyGeneration ?? 0) !== this.strategyControls.generation(c.strategy)) return deny('strategy_selection_changed');
     if (paperTest && (this.cfg.mode !== 'paper' || this.cfg.brokerUrl !== 'https://paper-api.alpaca.markets')) return deny('paper_test_only');
     if (!this.ready || this.stopped || this.operatorPause) { c.blockers = [...this.issues, ...(this.operatorPause ? ['operator_pause'] : []), ...(this.stopped ? ['engine_stopped'] : [])]; return deny('entries_paused'); }
     if (this.pending().some(o => uncertain(o.status))) return deny('unresolved_order');
@@ -228,7 +295,7 @@ export class Engine {
     if (now - (this.lastEntry[c.symbol] ?? 0) < this.cfg.cooldown) return deny('symbol_cooldown');
     if (!paperTest && !SESSION_STRATEGIES.includes(c.strategy) && this.snapshots.get(c.symbol)?.version !== (c.features.barVersion ?? c.features.version)) return deny('superseded_snapshot');
     if (c.strategy === 'order_flow_continuation' && now - c.features.micro.ts > 1000) return deny('microstructure_signal_expired');
-    const riskConfig = paperTest ? { ...this.cfg, maxPosition: Math.min(this.cfg.maxPosition, isCrypto(c.symbol) ? 25 : c.reference * 1.02) } : this.cfg;
+    const riskConfig = { ...this.cfg, strategies: this.strategyControls.enabledIds(), noiseReservationEligible: this.noiseReservation().eligible, ...(paperTest ? { maxPosition: Math.min(this.cfg.maxPosition, isCrypto(c.symbol) ? 25 : c.reference * 1.02) } : {}) };
     const shared = this.cfg.accountPolicy === 'shared';
     const riskAccount = shared ? { ...this.account, cash: Math.min(this.account.cash, this.portfolio.state.cashAvailable) } : this.account;
     const decision = sizeEntry(c, this.quotes.get(c.symbol), riskAccount, shared ? this.portfolio.positions : this.positions, this.pending(), riskConfig, this.assets.get(c.symbol), now, this.session);
@@ -240,6 +307,8 @@ export class Engine {
     if (!decision.ok) return this.reject(c, decision.reason);
     const now = this.clock();
     const o = { id: idFor('e', [this.cfg.mode, this.account.id, c.id]), symbol: c.symbol, kind: 'entry', candidateId: c.id, strategy: c.strategy,
+      experiment: strategyManifest(this, c.strategy),
+      exitPolicy: breakoutPolicy(c, this.cfg), discovery: this.universe?.selection(c.symbol) ?? null,
       status: 'reserved', ts: now, ...decision, entryDeadline: Math.min(c.expires, now + this.cfg.entryTtl), timeInForce: isCrypto(c.symbol) ? 'ioc' : 'day', feeRateBps: isCrypto(c.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, maxHold: c.maxHold ?? this.cfg.maxHold, legs: [], filledQty: 0, fillPrice: 0 };
     this.store.order(o);
     this.observability.counts.riskApproved++;
@@ -290,15 +359,20 @@ export class Engine {
     if (local.filledQty > priorFill) local.lastFillObservedAt = this.clock();
     for (const leg of local.legs ?? []) {
       const previous = previousLegs.find(x => x.brokerId === leg.brokerId);
+      if(previous?.feeSource==='broker_activity_provisional'&&leg.fee==null){leg.fee=previous.fee;leg.feeSource=previous.feeSource;}
       this.observability.fill(leg, local, previous?.filledQty ?? 0);
       if (leg.filledQty > (previous?.filledQty ?? 0)) leg.lastFillObservedAt = this.clock();
       else if (previous?.lastFillObservedAt) leg.lastFillObservedAt = previous.lastFillObservedAt;
     }
     if (local.filledQty > priorFill && local.kind === 'entry') {
       delete local.settledAt;
-      const previousReason = this.managed[local.symbol]?.exitReason;
-      this.managed[local.symbol] = { entryId: local.id, strategy: local.strategy, stop: local.stop, target: local.target, maxHold: local.maxHold ?? this.cfg.maxHold, openedAt: local.ts, exitReason: previousReason ?? (local.exitAfterFill ? 'operator_flatten' : null) };
+      const previous = this.managed[local.symbol]?.entryId === local.id ? this.managed[local.symbol] : {};
+      this.managed[local.symbol] = { ...previous, entryId: local.id, strategy: local.strategy, stop: local.stop, target: local.target, maxHold: local.maxHold ?? this.cfg.maxHold, openedAt: previous.openedAt ?? local.filledAt ?? local.lastFillObservedAt ?? local.ts, exitReason: previous.exitReason ?? (local.exitAfterFill ? 'operator_flatten' : null) };
       this.store.set('managed', this.managed);
+    }
+    if(local.kind==='entry') {
+      const managed=this.managed[local.symbol];
+      if(managed?.entryId===local.id){if(managed.excursion)local.excursion={...managed.excursion};if(managed.exitReason)local.exitReason=managed.exitReason;this.exitEntries.set(local.id,local);}
     }
     this.store.order(local);
     this.realtime.eventVersion++;
@@ -313,19 +387,33 @@ export class Engine {
       let now = this.clock(); this.lastLoop = Date.now(); this.store.lease(Date.now());
       this.outcomes.sweep(now);
       try {
-        const [session, open] = await Promise.all([this.broker.clock(now), this.broker.openOrders()]);
+        const priority = Object.keys(this.managed).length || this.pending().length ? 'protection' : 'normal';
+        const [session, open, positions] = await Promise.all([this.broker.clock(now, priority), this.broker.openOrders(priority), this.broker.positions(priority)]);
         now = this.clock();
         const locals = this.store.orders();
+        const observed = new Map();
+        for (const row of open) { observed.set(row.brokerId, row); for (const leg of row.legs ?? []) observed.set(leg.brokerId, leg); }
         for (const o of locals) {
           // Continue querying parent while position exists, to refresh bracket legs.
           if (terminal(o.status) && !(o.kind === 'entry' && (this.managed[o.symbol]?.entryId === o.id || (o.filledQty > 0 && !o.settledAt)))) continue;
-          const remote = await this.broker.find(o.id, o.brokerId);
+          const snapshot = o.brokerId ? observed.get(o.brokerId) : null;
+          const exits = locals.filter(x => x.kind === 'exit' && x.entryId === o.id).reduce((s, x) => s + (x.filledQty ?? 0), 0) + (o.legs ?? []).reduce((s, x) => s + (x.filledQty ?? 0), 0);
+          const changedQuantity = o.kind === 'entry' && Math.abs((positions.find(p => p.symbol === o.symbol)?.qty ?? 0) - ((o.filledQty ?? 0) - exits)) > 1e-8;
+          const activeLegsMissing = (o.legs ?? []).some(l => !terminal(l.status) && !observed.has(l.brokerId));
+          const urgent = !terminal(o.status) || !o.settledAt || changedQuantity || activeLegsMissing || this.dirtyOrderSymbols.has(o.symbol) || this.managed[o.symbol]?.exitReason;
+          // Stable parents are refreshed every 30s. Broker notifications, quantity
+          // changes and missing protective legs always require a fresh lookup.
+          if (!snapshot && this.broker.budgetStatus && !urgent && now - (this.orderRefreshAt.get(o.id) ?? 0) < 30000) {
+            for (const leg of o.legs ?? []) if (observed.has(leg.brokerId)) Object.assign(leg, observed.get(leg.brokerId));
+            this.store.order(o); continue;
+          }
+          const remote = snapshot ?? await this.broker.find(o.id, o.brokerId, priority);
           if (remote) this.merge(o, remote);
           else if (!terminal(o.status)) { o.status = 'unknown'; this.store.order(o); }
+          this.orderRefreshAt.set(o.id, now);
         }
-        const positions = await this.broker.positions();
         // Read cash after order/position reconciliation before releasing fill reservations.
-        const account = await this.broker.account(this.clock());
+        const account = await this.broker.account(this.clock(), priority);
         if (`${this.cfg.mode}:${account.id}` !== this.store.get('identity')) throw new Error('account_changed');
         this.account = account; this.session = session; this.positions = positions; this.openOrders = open;
         // Gross fill cash flow is an upper bound: actual fees can reduce cash further.
@@ -344,6 +432,7 @@ export class Engine {
         const unmatchedOrders = open.filter(o => !ownIds.has(o.id) && !locals.some(x => x.legs?.some(l => l.brokerId === o.brokerId)));
         const externalOrders = unmatchedOrders.length > 0;
         const book = this.portfolio.refresh(positions, this.store.orders(), account, now);
+        const incidents = updateIncidents(this, book, this.store.orders(), positions, now);
         const ownedSymbols = new Set(this.portfolio.positions.map(p => p.symbol));
         this.externalSymbols = new Set(positions.filter(p => !ownedSymbols.has(p.symbol)).map(p => p.symbol));
         for (const symbol of book.conflicts) this.externalSymbols.add(symbol);
@@ -355,8 +444,10 @@ export class Engine {
           orders: unmatchedOrders.map(o => ({ symbol: o.symbol, side: o.side, qty: o.qty, status: o.status, clientId: o.id })),
         };
         const invalidAccount = ![account.equity, account.cash, account.buyingPower].every(Number.isFinite);
-        const invalidPosition = this.positions.some(p => !positive(p.qty) || !Number.isFinite(p.marketValue));
+        const invalidPosition = this.positions.some(p => !Number.isFinite(p.qty) || p.qty === 0 || !Number.isFinite(p.marketValue) ||
+          (!shared && !positive(p.qty)) || (shared && ownedSymbols.has(p.symbol) && !positive(p.qty)));
         this.issues = [];
+        if (incidents.some(x => !x.resolvedAt)) this.issues.push('execution_incident');
         if (this.timebase && !this.timebase.status().synchronized) this.issues.push('clock_not_synchronized');
         if (!shared && (externalOrders || externalPositions)) this.issues.push('external_account_activity');
         if (shared && externalOrders) this.issues.push('external_orders_pending');
@@ -366,19 +457,25 @@ export class Engine {
         if (invalidAccount || invalidPosition || account.blocked) this.issues.push('account_restricted');
         if (this.pending().some(o => uncertain(o.status))) this.issues.push('unresolved_order');
         if (this.pending().some(o => o.kind === 'entry' && o.filledQty > 0 && !o.settledAt)) this.issues.push('fill_not_reconciled');
-        if (this.workers.status().some(w => !w.alive)) this.issues.push('strategy_worker_failure');
+        if (this.workers.status().some(w => this.strategyControls.enabled(w.strategy) && !w.alive)) this.issues.push('strategy_worker_failure');
         const day = nyDate(now), baseline = this.store.get(`equity:${day}`);
         if (baseline === null && positive(account.equity)) this.store.set(`equity:${day}`, account.equity);
         this.dailyPnl = account.equity - (baseline ?? account.equity);
         if (!shared && this.dailyPnl <= -this.dailyLossLimit) this.store.set(`lossHalt:${day}`, true);
         if (this.store.get(this.lossHaltKey(now), false)) this.issues.push('daily_loss_limit');
         this.ready = this.issues.length === 0;
+        this.accounting.observeDay(now);
         for (const o of this.pending().filter(o => o.kind === 'entry')) {
-          if (now >= (o.entryDeadline ?? o.ts + this.cfg.entryTtl) || this.operatorPause || this.issues.includes('daily_loss_limit')) {
+          if (o.strategy !== 'operator_paper_test' && !this.strategyControls.enabled(o.strategy) && !terminal(o.status) && o.filledQty < o.qty && !o.entryDisableRequested) {
+            o.entryDisableRequested = true; this.store.order(o);
+          }
+          if (o.entryDisableRequested || now >= (o.entryDeadline ?? o.ts + this.cfg.entryTtl) || this.operatorPause || this.issues.includes('daily_loss_limit')) {
             if (!terminal(o.status) && !uncertain(o.status) && (!o.cancelRequestedAt || now - o.cancelRequestedAt > 5000)) await this.cancel(o);
           }
         }
         await this.manageExits(now);
+        this.dirtyOrderSymbols.clear();
+        this.protection = { state: book.conflicts.length ? 'incident' : 'reconciled', observedAt: Date.now(), reason: book.conflicts.length ? 'managed_position_conflict' : null };
         this.lastReconcile = Date.now(); this.lastLoop = Date.now();
         if (now - (this.lastEquityRecord ?? 0) >= 5000) {
           this.store.event('equity', { equity: account.equity, cash: account.cash, dailyPnl: this.dailyPnl,
@@ -388,6 +485,7 @@ export class Engine {
           this.lastEquityRecord = now;
         }
       } catch (error) {
+        this.protection = { ...this.protection, state: 'blocked', reason: faultDetail(error) };
         this.fail('broker_reconciliation_failed', error); this.lastLoop = Date.now();
       }
     });
@@ -398,7 +496,7 @@ export class Engine {
       if (this.externalSymbols.has(symbol)) continue;
       const p = this.positions.find(p => p.symbol === symbol), parent = all.find(o => o.id === m.entryId);
       if (!p) {
-        if (parent && terminal(parent.status) && (!parent.filledQty || parent.settledAt)) { delete this.managed[symbol]; this.store.set('managed', this.managed); }
+        if (parent && terminal(parent.status) && (!parent.filledQty || parent.settledAt)) { this.exitEntries.delete(m.entryId); delete this.managed[symbol]; this.store.set('managed', this.managed); }
         continue;
       }
       const q = this.quotes.get(symbol), fresh = validateQuote(q, now, this.cfg.maxQuoteAge);
@@ -436,6 +534,7 @@ export class Engine {
   }
   async control(action) {
     return this.mutex.run(async () => {
+      this.store.assertLease();
       if (action === 'pause') this.operatorPause = true;
       else if (action === 'resume') this.operatorPause = false;
       else if (action === 'cancel_entries') {
@@ -478,6 +577,15 @@ export class Engine {
     });
   }
   lossHaltKey(now) { return `${this.cfg.accountPolicy === 'shared' ? 'agentLossHalt' : 'lossHalt'}:${nyDate(now)}`; }
+  noiseReservation() {
+    let reason = null;
+    if (!this.strategyControls.enabled('noise_area')) reason = 'strategy_disabled';
+    else if (this.portfolio.state.reservedSymbols.includes(this.cfg.noiseSymbol)) reason = 'external_symbol_reserved';
+    else if (!this.noiseArea) reason = 'handler_unavailable';
+    else if (!this.session?.open || this.session.close - this.clock() < 10 * 60000) reason = 'session_ineligible';
+    else if (this.noiseArea.reason !== 'ready' || this.noiseArea.state?.date !== nyDate(this.clock())) reason = 'context_unavailable';
+    return { eligible: !reason, reason, notional: reason ? 0 : this.cfg.noiseNotional };
+  }
   research() {
     const now = this.clock();
     if (this.researchCache && now - this.researchCache.now < 10000) return this.researchCache;
@@ -492,16 +600,21 @@ export class Engine {
   status() {
     const now = this.clock();
     const clockBlocked = this.timebase && !this.timebase.status().synchronized;
-    return { version: '1.7.0', cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
+    const sessionBlocked = !this.cfg.crypto.length && (!this.session?.open || this.session.close-now<600000);
+    const quotesBlocked = !this.cfg.symbols.some(symbol => (isCrypto(symbol)||this.session?.open) && validateQuote(this.quotes.get(symbol),now,this.cfg.maxQuoteAge));
+    return { version: RELEASE.version, release:RELEASE, backup:this.store.get('backupStatus'), cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
       issues: [...new Set([...this.issues, ...(clockBlocked ? ['clock_not_synchronized'] : [])])],
-      diagnostics: marketDiagnostics(this),
+      diagnostics: marketDiagnostics(this), protection: protectionHealth(this), noiseReservation: this.noiseReservation(),
+      entryReady: this.ready && !clockBlocked && !sessionBlocked && !quotesBlocked && !this.operatorPause && (!this.universe||this.universe.entryReady(now)) && (this.broker.entryBudgetAvailable?.() ?? true),
+      entryBlockers: [...this.issues, ...(this.universe&&!this.universe.entryReady(now)?['universe_scan_stale']:[]), ...(quotesBlocked ? ['market_quotes_missing_or_stale'] : []), ...(sessionBlocked ? ['equity_session_closed_or_closing'] : []), ...(clockBlocked ? ['clock_not_synchronized'] : []), ...(this.operatorPause ? ['operator_pause'] : []), ...(this.broker.entryBudgetAvailable && !this.broker.entryBudgetAvailable() ? ['broker_request_budget'] : [])],
       reconciliation: { ...this.externalDetails, policy: this.cfg.accountPolicy, blocking: this.issues.some(x => ['external_account_activity', 'external_orders_pending', 'managed_position_conflict', 'agent_accounting_unavailable'].includes(x)), reservedSymbols: this.portfolio.state.reservedSymbols, observedAt: this.lastReconcile,
         guidance: this.cfg.accountPolicy === 'shared' ? 'External holdings remain in this account and are never adopted or closed by the agents. Their symbols and option underlyings are reserved. Agent limits use only the managed book; pending external orders and managed-quantity discrepancies still block new entries.' : 'Entries require an account reconciled with this engine journal. Existing holdings and orders from other tools remain external. Restore the matching journal if these were engine orders, or reconcile them separately in your broker account. Resume and changing the loss ceiling do not adopt external holdings.' },
       account: this.account && { equity: this.account.equity, cash: this.account.cash, buyingPower: this.account.buyingPower }, dailyPnl: this.dailyPnl ?? 0,
       positions: this.positions.map(p => ({ ...p, management: this.externalSymbols.has(p.symbol) ? null : this.managed[p.symbol] ?? null })), orders: this.store.orders().slice(-100).reverse(),
       candidates: this.store.candidates(60), events: this.store.events(40).filter(e => e.type !== 'market_sample'),
+      universe: this.universe?.status() ?? {mode:'static',state:'static',streamed:this.cfg.equities.length},
       market: this.cfg.symbols.map(symbol => ({ symbol, quote: this.quotes.get(symbol) ?? null, bars: (isCrypto(symbol) && this.cfg.mode !== 'demo' ? this.cryptoFeatures : this.features).history.get(symbol)?.length ?? 0, features: this.snapshots.get(symbol) ?? null })),
-      workers: this.workers.status(), noiseArea: this.noiseArea?.status() ?? null, feeds: this.feeds, lastReconcile: this.lastReconcile, pairs: [...this.pairs.values()],
+      workers: this.workers.status().map(w => ({ ...w, enabled: this.strategyControls.enabled(w.strategy) })), enabledStrategies: this.strategyControls.enabledIds(), strategyRevision: this.strategyControls.state.revision, noiseArea: this.noiseArea?.status() ?? null, feeds: this.feeds, lastReconcile: this.lastReconcile, pairs: [...this.pairs.values()],
       microstructure: this.cfg.symbols.map(symbol => ({ symbol, ...this.microstructure.snapshot(symbol, now) })),
       jev: { mode: this.cfg.jevMode, model: this.cfg.jevModel, spent: this.store.spend(new Date(now).toISOString().slice(0, 7)), budget: this.cfg.jevBudget },
       limits: { scope: this.cfg.accountPolicy === 'shared' ? 'agent' : 'account', capital: this.cfg.capital, maxGross: this.cfg.maxGross, maxPosition: this.cfg.maxPosition, maxPositions: this.cfg.maxPositions === 0 ? null : this.cfg.maxPositions, dailyLoss: this.dailyLossLimit,
@@ -509,6 +622,8 @@ export class Engine {
       warnings: [...(this.cfg.mode === 'demo' ? ['Synthetic accelerated data; results have no investment meaning.'] : []), ...(this.cfg.crypto.length ? ['Crypto exits depend on this service and network availability.'] : []), 'Strategies and model thresholds are unvalidated research hypotheses.'] };
   }
   healthyForHeartbeat() {
+    if(this.store.get('backupStatus')?.verified===false)return false;
+    if (!protectionHealth(this).healthy || this.workers.status().some(w => this.strategyControls.enabled(w.strategy) && !w.alive)) return false;
     if (this.timebase && !this.timebase.status().synchronized) return false;
     if (!this.ready || Date.now() - this.lastReconcile > 30000) return false;
     if (this.cfg.mode === 'demo') return true;

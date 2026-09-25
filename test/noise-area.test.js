@@ -46,6 +46,20 @@ async function harness(start, extra, options) {
 }
 const decisions = store => store.events(500).filter(e => e.type === 'noise_area_decision').map(e => e.data).reverse();
 
+test('switching off noise-area blocks new entries but preserves its session trailing exit', async () => {
+  const h = await harness(OPEN + 5000);
+  try {
+    await h.engine.noiseArea.tick(h.now());
+    for (let i = 0; i <= 30; i++) await h.minute(i);
+    assert.equal(h.engine.managed.QQQ.strategy, 'noise_area');
+    await h.engine.strategyControls.update({ strategy: 'noise_area', enabled: false, expectedRevision: 0 });
+    for (let i = 31; i <= 62; i++) await h.minute(i);
+    const exit = h.store.orders().find(o => o.kind === 'exit');
+    assert.equal(exit.reason, 'noise_trailing_stop'); assert.equal(exit.status, 'filled');
+    assert.equal(h.store.orders().filter(o => o.kind === 'entry').length, 1);
+  } finally { h.engine.stopped = true; clearTimeout(h.engine.streamReconcile); h.store.close(); }
+});
+
 test('noise band comes from the prior 14 regular sessions, the prior close and today\'s open', async () => {
   const h = await harness(OPEN + 5000);
   try {
@@ -123,6 +137,7 @@ test('bar strategies leave the noise notional free while it is flat; config reje
   const noise = { ...bar, symbol: 'SPY', strategy: 'noise_area', stop: 98.5, target: 105, sizing: { notional: 1500 } };
   assert.equal(sizeEntry(noise, q, account, held, [], noiseConfig({ STRATEGIES: 'noise_area,range_breakout', NOISE_AREA_SYMBOL: 'SPY' }), asset, now, session).qty, 14);
   assert.throws(() => testConfig({ STRATEGIES: 'noise_area' }), /shadow, paper or live/);
-  assert.throws(() => noiseConfig({ NOISE_AREA_SYMBOL: 'IWM' }), /EQUITY_SYMBOLS/);
+  assert.throws(() => noiseConfig({ NOISE_AREA_SYMBOL: 'IWM', EQUITY_UNIVERSE:'static' }), /EQUITY_SYMBOLS/);
+  assert.doesNotThrow(() => noiseConfig({ NOISE_AREA_SYMBOL:'IWM', EQUITY_UNIVERSE:'all' }));
   assert.throws(() => noiseConfig({ NOISE_AREA_NOTIONAL_USD: '2500', MAX_GROUP_USD: '2000' }), /exceeds/);
 });

@@ -10,6 +10,9 @@ const condition = c => `${c.name}: ${value(c.actual)} ${c.operator} ${value(c.ta
 export class OperationsView {
   constructor(api) {
     this.api = api; this.cursor = 0; this.rows = []; this.sequence = 0; this.live = true;
+    const panel=document.createElement('section');panel.className='panel';panel.id='protection-panel';
+    panel.innerHTML='<div class="panel-title"><h2>Protection &amp; accounting</h2><span id="release-identity" class="muted"></span></div><div id="protection-summary" class="execution-funnel"></div><p id="protection-incidents" class="amber" role="status"></p><p id="accounting-summary" class="muted"></p><p id="recovery-summary" class="muted"></p>';
+    $('strategy-controls-panel').before(panel);
     for (const id of ['log-category', 'log-symbol']) $(id).addEventListener('change', () => this.resetLog());
     $('log-search').addEventListener('input', () => this.renderLog());
     $('log-freeze').addEventListener('click', () => {
@@ -23,7 +26,7 @@ export class OperationsView {
   async refresh(status, symbol) {
     const sequence = ++this.sequence;
     try {
-      const d = await this.api(`/api/insights?symbol=${encodeURIComponent(symbol)}`);
+      const [d,accounting] = await Promise.all([this.api(`/api/insights?symbol=${encodeURIComponent(symbol)}`),this.api('/api/accounting').catch(()=>null)]);
       if (sequence !== this.sequence) return;
       if (this.session !== d.sessionId) { this.session = d.sessionId; this.resetLog(); }
       const universe = status.market.map(m => m.symbol).join(',');
@@ -32,8 +35,17 @@ export class OperationsView {
         $('log-symbol').innerHTML = '<option value="">All instruments</option>' + status.market.map(m => `<option>${esc(m.symbol)}</option>`).join('');
         if (status.market.some(m => m.symbol === selected)) $('log-symbol').value = selected;
       }
-      this.render(d, status); await this.refreshLog();
+      this.render(d, status);this.renderProtection(status,accounting); await this.refreshLog();
     } catch (e) { if (sequence === this.sequence) $('decision-why').textContent = `Decision telemetry unavailable: ${e.message}. The engine must run v1.3.`; }
+  }
+  renderProtection(s,a) {
+    const p=s.protection,b=s.brokerBudget;
+    $('release-identity').textContent=`v${s.version} · ${s.release?.sourceSha256?.slice(0,12)??'release hash unavailable'}`;
+    const cards=[['New entries',s.entryReady?'READY':'BLOCKED',(s.entryBlockers??s.issues).map(label).join(', ')||'No account gate reported'],['Position protection',p?.healthy?'RECONCILED':'NEEDS ATTENTION',p?.positions.map(x=>`${x.symbol}: ${label(x.protection)}`).join(' · ')||'No owned exposure'],['Broker requests',b?`${b.used}/${b.limit}`:'LOCAL SIMULATION',b?`Entry threshold ${b.entryThreshold}; remaining capacity reserved for exits`:''],['Outage alerts',p?.alertConfigured?'CONFIGURED':'NOT CONFIGURED','External monitor must alert when heartbeat stops']];
+    $('protection-summary').innerHTML=cards.map(([name,value,detail])=>`<article><span>${esc(name)}</span><strong>${esc(value)}</strong><small>${esc(detail)}</small></article>`).join('');
+    $('protection-incidents').textContent=(p?.incidents??[]).map(x=>`${x.symbol}: ${label(x.reason)}. Signed broker quantity ${x.brokerSignedQty}. ${x.recovery}`).join(' ');
+    $('accounting-summary').textContent=a?`Known economic P/L: ${a.knownEconomicNet==null?'unresolved':usd(a.knownEconomicNet)} · model charges ${usd(a.modelCost)} · operating costs ${a.fixedOperatingCost==null?'not configured':usd(a.fixedOperatingCost)} · ${a.ownedActivities} owned broker activities · ${a.mismatches.length} fill discrepancies. ${a.error??''} ${a.note}`:'Broker activity accounting unavailable.';
+    $('recovery-summary').textContent=`Backup: ${s.backup?.verified?'verified '+new Date(s.backup.at).toLocaleString():s.backup?.error??'not yet verified'} · off-host export ${s.backup?.exportConfigured?'configured; verify destination is off-host':'not configured'}.`;
   }
   render(d, s) {
     const c = d.counts;
@@ -107,6 +119,7 @@ export class OperationsView {
       if (e.type === 'fill') message = `${String(d.side ?? 'unknown side').toUpperCase()} fill observed · ${n(d.qty)} cumulative quantity at average ${usd(d.price)}`;
       if (e.type === 'quote_rejected') message = `Quote rejected · ${label(d.reason)}${d.ageMs == null ? '' : ` · ${(d.ageMs / 1000).toFixed(2)}s age`}`;
       if (e.type === 'control') message = `Operator requested ${label(d.action)}`;
+      if (e.type === 'strategy_settings_changed') message = `${d.strategy.replaceAll('_', ' ')} ${d.enabled ? 'enabled' : 'disabled'} for new entries (revision ${d.revision})`;
       if (e.type === 'risk_settings_changed') message = `Daily loss ceiling changed from ${usd(d.previousDailyLoss)} to ${usd(d.dailyLoss)}`;
       if (e.type === 'fault') message = `Engine gate blocked · ${label(d.reason)}`;
       const id = String(e.id), node = existing.get(id) ?? document.createElement('details'); node.dataset.id = id; node.className = `log-row log-${e.category}`;

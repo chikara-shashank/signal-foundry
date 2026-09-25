@@ -25,7 +25,8 @@ test('Fees use waivers, rounding and dated schedules',()=>{
   assert.equal(robinhoodEquityFee({side:'sell',qty:50,price:10,date}).total,0);
   assert.equal(robinhoodEquityFee({side:'sell',qty:51,price:10,date}).taf,0);
   assert.equal(robinhoodEquityFee({side:'sell',qty:52,price:2,date}).taf,.01);
-  assert.throws(()=>robinhoodEquityFee({side:'buy',qty:1,price:2,date:'2026-09-25'}));
+  assert.equal(robinhoodEquityFee({side:'buy',qty:1,price:2,date:'2026-09-25'}).total,0);
+  assert.equal(robinhoodEquityFee({side:'buy',qty:1,price:2,date:'2026-09-28'}).costAssumption,true);
 });
 test('Full scanner-to-pullback-to-portfolio fixture executes causally',()=>{
   const r=new MomentumResearch();for(const e of momentumFixture())r.on(e);

@@ -2,6 +2,8 @@ import { DatabaseSync, backup } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { gzipSync, gunzipSync } from 'node:zlib';
+import { hash, nyDate } from './util.js';
 
 export class Store {
   constructor(path = ':memory:') {
@@ -15,6 +17,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, symbol TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL, ts INTEGER NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS spending (id TEXT PRIMARY KEY, month TEXT NOT NULL, reserved REAL NOT NULL, actual REAL, ts INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS model_traces (id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL, ts INTEGER NOT NULL, symbol TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS broker_activities (id TEXT PRIMARY KEY, ts TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS options_outbox (sequence INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, data BLOB NOT NULL, digest TEXT NOT NULL, exported INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS model_trace_ts ON model_traces(ts);
       CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
       CREATE INDEX IF NOT EXISTS events_type_ts ON events(type,ts);
@@ -74,6 +78,7 @@ export class Store {
   ordersForSymbol(symbol, limit = 500) { return this.db.prepare('SELECT data FROM orders WHERE symbol=? ORDER BY ts DESC LIMIT ?').all(symbol, limit).map(x => JSON.parse(x.data)); }
   order(o) { this.db.prepare('INSERT INTO orders VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,data=excluded.data').run(o.id, o.symbol, o.kind, o.status, o.ts, JSON.stringify(o)); }
   orders() { return this.db.prepare('SELECT data FROM orders ORDER BY ts').all().map(x => JSON.parse(x.data)); }
+  getOrder(id) { const row = this.db.prepare('SELECT data FROM orders WHERE id=?').get(id); return row ? JSON.parse(row.data) : null; }
   modelTrace(trace) {
     this.db.prepare('INSERT INTO model_traces VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(trace.id, trace.candidateId, trace.ts, trace.symbol, JSON.stringify(trace));
     this.db.prepare('DELETE FROM model_traces WHERE id IN (SELECT id FROM model_traces ORDER BY ts DESC LIMIT -1 OFFSET 3000)').run();
@@ -98,6 +103,25 @@ export class Store {
   }
   settleCost(id, actual) { this.db.prepare('UPDATE spending SET actual=? WHERE id=?').run(actual, id); }
   async backup(path) { await backup(this.db, path); }
+  activity(row) { return this.db.prepare('INSERT OR IGNORE INTO broker_activities VALUES(?,?,?)').run(row.id,row.at,JSON.stringify(row)).changes > 0; }
+  activities() { return this.db.prepare('SELECT data FROM broker_activities ORDER BY ts,id').all().map(x=>JSON.parse(x.data)); }
+  saveOptionsFrame(record, next) {
+    return this.transaction(()=>{
+      this.assertLease();
+      const prior=this.get('optionsTapeHead');
+      const sequence=(prior?.sequence??0)+1;
+      const row={...record,sequence,previousRecordHash:prior?.digest??null};
+      const digest=hash(row),data=gzipSync(Buffer.from(JSON.stringify({...row,recordHash:digest})+'\n'));
+      const bytes=this.db.prepare('SELECT COALESCE(SUM(length(data)),0) bytes FROM options_outbox').get().bytes;
+      if(bytes+data.length>5*1024**3)throw new Error('options_archive_quota');
+      this.db.prepare('INSERT INTO options_outbox(sequence,date,data,digest) VALUES(?,?,?,?)').run(sequence,nyDate(next.lastAt),data,digest);
+      this.set('optionsTapeHead',{sequence,digest,date:record.frame.session?.date??null});this.set('optionsLab',next);return sequence;
+    });
+  }
+  optionExports(limit=10) { return this.db.prepare('SELECT * FROM options_outbox WHERE exported=0 ORDER BY sequence LIMIT ?').all(limit); }
+  markOptionExport(sequence) { this.db.prepare('UPDATE options_outbox SET exported=1 WHERE sequence=?').run(sequence); }
+  optionArchiveStatus() { return this.db.prepare('SELECT COUNT(*) frames, COALESCE(SUM(length(data)),0) bytes, COALESCE(SUM(exported=0),0) pending FROM options_outbox').get(); }
+  static decodeOptionRecord(data) { return JSON.parse(gunzipSync(data).toString('utf8')); }
   prune(before) {
     this.transaction(() => {
       this.db.prepare('DELETE FROM bars WHERE ts<?').run(before);

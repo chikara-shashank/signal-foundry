@@ -15,6 +15,7 @@ export class NoiseArea {
   state = null; busy = false; deciding = false; retryAt = 0; lastDecision = null; reason = 'waiting_for_session';
   constructor(engine, venue, history) { Object.assign(this, { engine, venue, history, symbol: engine.cfg.noiseSymbol }); }
   async tick(now) {
+    if (!this.engine.strategyControls.enabled(NOISE_STRATEGY) && this.engine.managed[this.symbol]?.strategy !== NOISE_STRATEGY) { this.reason = 'strategy_disabled'; return; }
     if (!this.engine.session?.open) { this.reason = 'equity_session_closed'; return; }
     await this.prepare(now);
     await this.evaluate(now);
@@ -67,12 +68,15 @@ export class NoiseArea {
   // The decision at mark T uses the minute bar ending at T (last trade before T) and VWAP of bars before T.
   async evaluate(now) {
     const e = this.engine, s = this.state;
+    if (!e.strategyControls.enabled(NOISE_STRATEGY) && e.managed[this.symbol]?.strategy !== NOISE_STRATEGY) return;
     if (!s || this.deciding || s.date !== nyDate(now)) return;
     this.deciding = true;
     try {
       for (const mark of s.marks) {
         if (mark.done) continue;
         if (now < mark.ts) break;
+        // Re-enabling waits for a new decision mark; held positions still receive exits.
+        if (e.managed[this.symbol]?.strategy !== NOISE_STRATEGY && mark.ts < e.strategyControls.state.strategies[NOISE_STRATEGY].changedAt) { mark.done = 'before_enable'; continue; }
         const before = [...s.bars.values()].filter(b => b.ts < mark.ts), latest = before.reduce((x, b) => !x || b.ts > x.ts ? b : x, null);
         if (latest?.ts !== mark.ts - 60000 && now - mark.ts < 20000) break; // Wait briefly for the closing minute bar.
         if (now - mark.ts > 90000) { mark.done = 'missed'; this.record(mark, { action: 'missed' }); continue; }
@@ -90,6 +94,7 @@ export class NoiseArea {
             e.scheduleReconcile(); action = 'exit_long';
           }
         } else if (owned || pendingEntry) action = 'symbol_busy';
+        else if (!e.strategyControls.enabled(NOISE_STRATEGY)) action = 'strategy_disabled';
         else if (price > ub) action = 'enter_long';
         else if (price < lb) action = 'short_signal_not_traded';
         mark.done = action;
@@ -112,7 +117,7 @@ export class NoiseArea {
   }
   status() {
     const s = this.state;
-    return { strategy: NOISE_STRATEGY, symbol: this.symbol, side: 'long_only', reason: this.reason, date: s?.date ?? null, prevClose: s?.prevClose ?? null, dayOpen: s?.dayOpen ?? null,
+    return { strategy: NOISE_STRATEGY, enabled: this.engine.strategyControls.enabled(NOISE_STRATEGY), symbol: this.symbol, side: 'long_only', reason: this.reason, date: s?.date ?? null, prevClose: s?.prevClose ?? null, dayOpen: s?.dayOpen ?? null,
       nextMarkTs: s?.marks.find(m => !m.done)?.ts ?? null, decided: s?.marks.filter(m => m.done).length ?? 0, marks: s?.marks.length ?? 0, lastDecision: this.lastDecision };
   }
 }
