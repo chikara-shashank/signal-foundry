@@ -1,5 +1,7 @@
 # Signal Foundry
 
+Version 1.13 adds a [trade-return timeline](docs/TRADE-RETURN-CHART.md): time versus net return percentage, entry/exit markers, open-position bid marks, ticker/status filters and persistent forward observations. Additions and partial exits count together; stale prices and missing historical paths are explicitly labeled.
+
 Version 1.12 adds opt-in [controlled additions to winners](docs/PYRAMIDING.md) for the two equity breakout strategies. The switches default off. Separate fill lots retain coordinated protection, combined positions count once in win rates, and paired executable-quote replay measures incremental net P/L and drawdown. This is a paper experiment with no established profitability.
 
 Version 1.11 adds [full-universe equity discovery and breakout profit protection](docs/BREAKOUT-DISCOVERY.md). Provider runs screen all eligible listed stocks and ETFs, rotate a bounded streaming shortlist, and retain subscriptions for owned positions. New range-breakout and failed-breakout entries get versioned profit, invalidation and no-progress exits. These are forward paper experiments; the older losing results are retained separately by experiment version.
@@ -121,7 +123,7 @@ npm run report -- research-report.json
 
 ## Live mode
 
-Live mode requires `MODE=live`, live Alpaca credentials, the exact `EXPECTED_ACCOUNT_ID`, and `LIVE_ACK=I_ACCEPT_REAL_MONEY_RISK`. Crypto also requires `LIVE_CRYPTO_ACK=I_ACCEPT_SOFTWARE_EXIT_OUTAGE_RISK` or an empty crypto universe. These are explicit operator choices; the application never promotes itself from paper to live. Start by reading the runbook and completing provider paper checks.
+Live mode requires `MODE=live`, live Alpaca credentials, the exact `EXPECTED_ACCOUNT_ID`, and `LIVE_ACK=I_ACCEPT_REAL_MONEY_RISK`. Crypto also requires `LIVE_CRYPTO_ACK=I_ACCEPT_SOFTWARE_EXIT_OUTAGE_RISK` or `CRYPTO_UNIVERSE=off`. These are explicit operator choices; the application never promotes itself from paper to live. Start by reading the runbook and completing provider paper checks.
 
 Native equity stops can slip, and bracket children activate only after full entry fill. Crypto exits depend on this service, current market data for price triggers, and connectivity. A single VM is not highly available. Pausing new entries preserves position management; stopping the container does not close positions.
 
@@ -148,3 +150,9 @@ Options research is available in v1.9.0: three independently switchable, defined
 # v1.10 audit remediation
 
 See [the remediation and deployment guide](docs/AUDIT-REMEDIATION.md) for request-budget protection, durable execution incidents, version-filtered strategy results, broker-activity accounting, recovery tools and the remaining research/execution gaps. `scripts/deploy-paper.ps1` preserves the approved $2,000 paper daily-loss limit and verifies the new release before resuming entries. This release does not qualify any strategy for live trading or connect options broker orders.
+
+## Session scheduling and next-session research (v1.14)
+
+Provider equity fast data runs 09:00–16:00 New York time on actual exchange sessions; regular stock execution starts at 09:30 and early closes shorten the window. Crypto runs continuously using the global top 25 by market cap intersected with Alpaca tradable USD pairs. Use `CRYPTO_UNIVERSE=off` to disable new crypto buys; empty seed symbols no longer disable ranking.
+
+The new Sessions & tomorrow panel shows the calendar, crypto selection, closing-pattern/news watchlist and carry allocation. Closing strength + news is a separately switchable paper/shadow strategy, with entries at 15:30–15:55, GTC brackets, a three-future-session deadline and a combined 9.5% engine-allocation cap including pending buys. Existing day trades keep their exits. Research evidence, exact thresholds, settings, tests and limitations are in [the v1.14 research and implementation review](docs/SESSION-RESEARCH-v1.14.md). No profitability or live qualification is claimed.

@@ -190,5 +190,5 @@ test('code drift disables only the options lab and preserves the prior ledger', 
   const lab = new OptionsLab(f.engine, null);
   assert.match(lab.unavailable(), /experiment changed/); assert.equal(lab.snapshot().strategies[0].netPnl, null);
   await assert.rejects(() => lab.update({ strategy: 'put_credit', enabled: false, expectedRevision: 0 }), { status: 409 });
-  assert.equal(f.store.get('optionsLab').codeHash, 'old-implementation'); assert.equal(f.engine.status().version, '1.12.0');
+  assert.equal(f.store.get('optionsLab').codeHash, 'old-implementation'); assert.equal(f.engine.status().version, '1.14.0');
 });

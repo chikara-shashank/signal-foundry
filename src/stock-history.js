@@ -5,10 +5,11 @@ import { validBar } from './util.js';
 export class StockHistory {
   inflight = new Map(); pausedUntil = 0;
   constructor(engine, fetchFn = fetch) { this.engine = engine; this.fetch = fetchFn; }
-  async bars(symbols, start, end, timeframe = '1Min') {
+  async bars(symbols, start, end, timeframe = '1Min', {research=false} = {}) {
     const { cfg } = this.engine, out = new Map(symbols.map(s => [s, []])), interval = { '1Min': 60000, '30Min': 1800000 }[timeframe]; let token = null;
     if (!interval) throw new Error('stock_history_timeframe');
     for (let page = 0; page < 10; page++) {
+      if(!research&&this.engine.schedule&&!this.engine.schedule.state().equityTracking)throw new Error('stock_history_scheduled_off');
       const query = new URLSearchParams({ symbols: symbols.join(','), timeframe, start: new Date(start).toISOString(), end: new Date(end - 1).toISOString(),
         feed: cfg.feed, adjustment: 'raw', limit: '10000', sort: 'asc' });
       if (token) query.set('page_token', token);
@@ -35,6 +36,7 @@ export class StockHistory {
   // Before streaming starts: restore the last two hours so contexts are ready immediately.
   async warmup(minutes = 150) {
     const e = this.engine, now = e.clock(), end = Math.floor(now / 60000) * 60000;
+    if(e.schedule && !e.schedule.state(now).equityTracking)return;
     if (!e.cfg.equities.length) return;
     try {
       const bars = await this.bars(e.cfg.equities, end - minutes * 60000, end);
@@ -47,6 +49,7 @@ export class StockHistory {
   // continuity rule does not discard two hours of context for one lost minute.
   async repair(b) {
     const e = this.engine, last = e.features.history.get(b.symbol)?.at(-1)?.ts;
+    if(e.schedule && !e.schedule.state().equityTracking)return;
     if (!Number.isFinite(last) || b.ts - last <= 60000 || b.ts - last > 30 * 60000 || Date.now() < this.pausedUntil) return;
     const pending = this.inflight.get(b.symbol);
     if (pending) return pending;

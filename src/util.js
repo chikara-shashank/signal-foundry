@@ -15,7 +15,7 @@ export function nyTimestamp(date, hhmm) {
 }
 export const nyDate = t => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(t));
 export const isCrypto = symbol => symbol.includes('/');
-export const canonical = symbol => symbol === 'BTCUSD' ? 'BTC/USD' : symbol === 'ETHUSD' ? 'ETH/USD' : symbol;
+export const canonical = (symbol, assetClass) => assetClass === 'crypto' && /^[A-Z0-9]{2,15}USD$/.test(symbol) ? symbol.slice(0,-3)+'/USD' : symbol === 'BTCUSD' ? 'BTC/USD' : symbol === 'ETHUSD' ? 'ETH/USD' : symbol;
 export function quoteOrder(q) { return typeof q.sequence === 'string' && /^\d{19}$/.test(q.sequence) ? BigInt(q.sequence) : BigInt(Math.trunc(q.ts)) * 1000000n; }
 export const terminal = status => ['filled', 'canceled', 'expired', 'rejected', 'aborted'].includes(status);
 export const uncertain = status => ['submitting', 'unknown'].includes(status);

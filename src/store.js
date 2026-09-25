@@ -18,6 +18,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS spending (id TEXT PRIMARY KEY, month TEXT NOT NULL, reserved REAL NOT NULL, actual REAL, ts INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS model_traces (id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL, ts INTEGER NOT NULL, symbol TEXT NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS broker_activities (id TEXT PRIMARY KEY, ts TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS trade_marks (campaign TEXT NOT NULL, ts INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(campaign,ts));
+      CREATE INDEX IF NOT EXISTS trade_marks_ts ON trade_marks(ts);
       CREATE TABLE IF NOT EXISTS options_outbox (sequence INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, data BLOB NOT NULL, digest TEXT NOT NULL, exported INTEGER NOT NULL DEFAULT 0);
       CREATE INDEX IF NOT EXISTS model_trace_ts ON model_traces(ts);
       CREATE INDEX IF NOT EXISTS events_ts ON events(ts);
@@ -78,6 +80,8 @@ export class Store {
   ordersForSymbol(symbol, limit = 500) { return this.db.prepare('SELECT data FROM orders WHERE symbol=? ORDER BY ts DESC LIMIT ?').all(symbol, limit).map(x => JSON.parse(x.data)); }
   order(o) { this.db.prepare('INSERT INTO orders VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,data=excluded.data').run(o.id, o.symbol, o.kind, o.status, o.ts, JSON.stringify(o)); }
   orders() { return this.db.prepare('SELECT data FROM orders ORDER BY ts').all().map(x => JSON.parse(x.data)); }
+  tradeMark(campaign, point) { this.db.prepare('INSERT OR REPLACE INTO trade_marks VALUES(?,?,?)').run(campaign, point.ts, JSON.stringify(point)); }
+  tradeMarks(campaign, since, until, limit = 3001) { return this.db.prepare('SELECT data FROM trade_marks WHERE campaign=? AND ts>=? AND ts<=? ORDER BY ts DESC LIMIT ?').all(campaign, since, until, limit).reverse().map(x => JSON.parse(x.data)); }
   getOrder(id) { const row = this.db.prepare('SELECT data FROM orders WHERE id=?').get(id); return row ? JSON.parse(row.data) : null; }
   modelTrace(trace) {
     this.db.prepare('INSERT INTO model_traces VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET data=excluded.data').run(trace.id, trace.candidateId, trace.ts, trace.symbol, JSON.stringify(trace));
@@ -127,6 +131,7 @@ export class Store {
       this.db.prepare('DELETE FROM bars WHERE ts<?').run(before);
       this.db.prepare('DELETE FROM events WHERE ts<?').run(before);
       this.db.prepare('DELETE FROM model_traces WHERE ts<?').run(before);
+      this.db.prepare('DELETE FROM trade_marks WHERE ts<?').run(before);
       // Orders, candidates and spending form the long-lived financial audit; never silently prune them.
     });
   }

@@ -8,7 +8,8 @@ export function sizeEntry(c, q, account, positions, pending, cfg, asset, now, se
   if (!asset?.tradable) return deny('asset_not_tradable');
   if (c.features?.regime === 'shock') return deny('volatility_shock');
   const crypto = isCrypto(c.symbol);
-  if (!crypto && (!session?.open || session.close - now < 10 * 60000 || now - session.ts > 15000)) return deny('equity_session_closed');
+  const entryCutoff=c.strategy==='close_strength_carry'&&c.holdingPolicy?.type==='carry'?5:10;
+  if (!crypto && (!session?.open || session.close - now < entryCutoff * 60000 || now - session.ts > 15000)) return deny('equity_session_closed');
   if ((!addition && positions.some(p => p.symbol === c.symbol)) || pending.some(o => o.symbol === c.symbol)) return deny('symbol_already_allocated');
   // Zero disables only the count cap; pending capital remains reserved below.
   if (!addition && cfg.maxPositions > 0 && positions.length + pending.filter(x => x.kind === 'entry').length >= cfg.maxPositions) return deny('position_limit');

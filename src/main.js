@@ -7,7 +7,7 @@ import { AlpacaBroker, SimBroker } from './broker.js';
 import { Engine } from './engine.js';
 import { AlpacaFeed, DemoFeed } from './feeds.js';
 import { createDashboard } from './server.js';
-import { sleep } from './util.js';
+import { sleep, isCrypto } from './util.js';
 import { ProviderClock } from './provider-clock.js';
 import { AlpacaOrderFeed } from './order-feed.js';
 import { CryptoContext } from './crypto-context.js';
@@ -20,6 +20,9 @@ import { RELEASE } from './release.js';
 import { createBackup } from './recovery.js';
 import { accountWriterLock } from './account-writer-lock.js';
 import { EquityUniverse } from './equity-universe.js';
+import { MarketSchedule } from './market-schedule.js';
+import { CryptoUniverse } from './crypto-universe.js';
+import { ResearchDesk } from './research-desk.js';
 
 let cfg;
 try { cfg = config(); } catch (e) { console.error(e.message); process.exit(1); }
@@ -30,10 +33,21 @@ const timebase = cfg.mode === 'demo' ? null : new ProviderClock();
 const venue = timebase ? new AlpacaBroker(cfg, fetch, timebase) : null;
 const broker = ['demo', 'shadow'].includes(cfg.mode) ? new SimBroker(cfg, store) : venue;
 const engine = new Engine(cfg, store, broker, workers, () => cfg.mode === 'demo' ? demoTime : timebase.now());
+// Disabling new crypto entries must not strand already-owned positions.
+if(cfg.cryptoUniverse==='off') {
+  cfg.crypto=[...new Set([...Object.keys(engine.managed),...engine.pending().map(o=>o.symbol)])].filter(isCrypto);
+  cfg.symbols=[...cfg.equities,...cfg.crypto];engine.realtime.trades.setSymbols(cfg.symbols);
+}
 if(cfg.universe.mode==='all'){engine.universe=new EquityUniverse(engine);engine.universe.restore();}
 engine.timebase = timebase;
-engine.optionsLab = new OptionsLab(engine, ['paper', 'shadow'].includes(cfg.mode) ? new OptionsData(cfg) : null);
+if(venue) {
+  engine.schedule=new MarketSchedule(engine,venue);
+  if(cfg.cryptoUniverse==='top25'){engine.cryptoUniverse=new CryptoUniverse(engine,venue);engine.cryptoUniverse.restore();}
+  engine.desk=new ResearchDesk(engine);
+}
+engine.optionsLab = new OptionsLab(engine, ['paper', 'shadow'].includes(cfg.mode) ? new OptionsData({...cfg,canRead:()=>engine.schedule?.state().equityTracking??true}) : null);
 const cryptoContext = cfg.mode === 'demo' ? null : new CryptoContext(engine);
+engine.cryptoContext=cryptoContext;
 if (cfg.mode !== 'demo') engine.stockHistory = new StockHistory(engine);
 if (!noiseUnavailable(cfg)) engine.noiseArea = new NoiseArea(engine, venue, engine.stockHistory);
 // Shadow uses real exchange session eligibility while retaining local capital.
@@ -64,6 +78,9 @@ try {
   if (venue) await venue.clock(timebase.now());
   if (['paper','live'].includes(cfg.mode)) accountLock=await accountWriterLock((await venue.account(timebase.now())).id,cfg.mode);
   await engine.init();
+  await engine.schedule?.poll();
+  await engine.cryptoUniverse?.poll(true);
+  if(engine.schedule?.state().equityTracking)await engine.universe?.primeWatchlist();
   // Restore recent provider minute bars before streaming so a restart is not blind for 30+ minutes.
   await engine.stockHistory?.warmup();
   server = createDashboard(engine, cfg);
@@ -73,9 +90,13 @@ try {
   else {
     if (cfg.equities.length||engine.universe) {
       const equityFeed=new AlpacaFeed('equities', `wss://stream.data.alpaca.markets/v2/${cfg.feed}`, cfg.equities, cfg, engine);
+      equityFeed.setStreaming(engine.schedule.state().equityTracking);
       feeds.push(equityFeed);if(engine.universe)engine.universe.feed=equityFeed;
     }
-    if (cfg.crypto.length) feeds.push(new AlpacaFeed('crypto', `wss://stream.data.alpaca.markets/v1beta3/crypto/${cfg.cryptoLocation}`, cfg.crypto, cfg, engine));
+    if (cfg.crypto.length||engine.cryptoUniverse) {
+      const cryptoFeed=new AlpacaFeed('crypto', `wss://stream.data.alpaca.markets/v1beta3/crypto/${cfg.cryptoLocation}`, cfg.crypto, cfg, engine);
+      feeds.push(cryptoFeed);if(engine.cryptoUniverse)engine.cryptoUniverse.feed=cryptoFeed;
+    }
     if (['paper', 'live'].includes(cfg.mode)) feeds.push(new AlpacaOrderFeed(cfg, engine));
   }
   for (const f of feeds) void f.run();
@@ -84,13 +105,24 @@ try {
   let lastBackup = 0, lastBackupAttempt = 0, lastHeartbeat = 0;
   while (!quitting) {
     await sleep(5000); if (quitting) break;
-    if (cfg.mode !== 'demo') { const task=engine.reconcile(); launch(task); await task; } if(quitting)break;
+    engine.lastLoop=Date.now();
+    if(engine.schedule) {
+      launch(engine.schedule.poll());
+      const feed=feeds.find(f=>f.name==='equities'),active=engine.schedule.state().equityTracking;
+      if(feed&&feed.scheduled!==active) {
+        if(active){await engine.universe?.primeWatchlist();launch(engine.stockHistory?.warmup()??Promise.resolve());}
+        feed.setStreaming(active);
+      }
+    }
+    if (cfg.mode !== 'demo'&&Date.now()-engine.lastReconcile>=(engine.schedule?.reconciliationInterval()??5000)) { const task=engine.reconcile(); launch(task); await task; } if(quitting)break;
     if (engine.noiseArea) { const task=engine.noiseArea.tick(engine.clock()).catch(() => engine.fail('noise_area_failure'));launch(task);await task; } if(quitting)break;
     if (cryptoContext) launch(cryptoContext.poll());
     launch(engine.optionsLab.poll());
     launch(engine.optionsLab.tape.flush());
     launch(engine.accounting.poll());
     if(engine.universe)launch(engine.universe.poll());
+    if(engine.cryptoUniverse)launch(engine.cryptoUniverse.poll());
+    if(engine.desk)launch(engine.desk.poll());
     if (cfg.heartbeatUrl && Date.now() - lastHeartbeat > 60000 && engine.healthyForHeartbeat()) {
       lastHeartbeat = Date.now();
       // An external dead-man monitor must alert when these success pings stop.

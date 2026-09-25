@@ -29,11 +29,25 @@ export class AlpacaFeed {
   setSymbols(symbols) {
     if(this.selectionWaiter)return Promise.reject(new Error('universe_subscription_busy'));
     this.symbols=[...new Set(symbols)];
+    if(this.scheduled === false || !this.symbols.length) { this.socket?.close(); return Promise.resolve(); }
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{this.selectionWaiter=null;this.socket?.close();reject(new Error('universe_subscription_timeout'));},15000);
       this.selectionWaiter={resolve:()=>{clearTimeout(timer);this.selectionWaiter=null;resolve();},reject:()=>{clearTimeout(timer);this.selectionWaiter=null;reject(new Error('universe_subscription_failed'));}};
       if(this.authenticated&&this.subscriptions)this.syncSubscriptions();
     });
+  }
+  setStreaming(enabled) {
+    clearTimeout(this.windowTimer);
+    this.scheduled=enabled;
+    if(!enabled) {
+      this.selectionWaiter?.resolve(); this.socket?.close();
+      this.engine.feeds[this.name]={...this.engine.feeds[this.name],status:'scheduled_off',note:'Fast equity data is off outside 09:00–16:00 New York exchange sessions.'};
+    }
+    else if(this.name==='equities'&&this.engine.schedule) {
+      const s=this.engine.schedule.state();
+      if(!s.equityTracking){this.setStreaming(false);return;}
+      this.windowTimer=setTimeout(()=>this.setStreaming(false),Math.max(0,s.trackingClose-this.engine.clock()));this.windowTimer.unref?.();
+    }
   }
   syncSubscriptions() {
     const channels=['bars','quotes','trades'], current=this.subscriptions;
@@ -49,9 +63,11 @@ export class AlpacaFeed {
   async run() {
     let failures = 0;
     while (!this.stopped) {
+      if(this.scheduled===false||!this.symbols.length){await this.wait(1000);continue;}
       const started = this.now();
       try { await this.connect(); } catch { /* Status contains a sanitized reason. */ }
       if (this.stopped) break;
+      if(this.scheduled===false||!this.symbols.length)continue;
       // Only consecutive failures escalate. A session that streamed for 30s restarts
       // the backoff; otherwise every later disconnect waited ~60s and lost minute bars.
       const streamedMs = this.streamedAt >= started ? this.now() - this.streamedAt : 0;
@@ -78,9 +94,10 @@ export class AlpacaFeed {
         if (!authenticated && Date.now() > authDeadline) fail('authentication_timeout');
         if (authenticated && (this.name === 'crypto' || this.engine.session?.open) && Date.now() - lastData > 90000) fail('data_timeout');
       }, 5000);
-      ws.addEventListener('open', () => ws.send(JSON.stringify({ action: 'auth', key: this.cfg.key, secret: this.cfg.secret })));
+      ws.addEventListener('open', () => {if(this.scheduled===false){ws.close();return;}ws.send(JSON.stringify({ action: 'auth', key: this.cfg.key, secret: this.cfg.secret }));});
       ws.addEventListener('message', event => {
         try {
+          if(this.scheduled===false||this.name==='equities'&&this.engine.schedule&&!this.engine.schedule.state().equityTracking){this.setStreaming(false);return;}
           if (typeof event.data !== 'string' || event.data.length > 2000000) return fail('invalid_frame');
           const messages = parseFeedFrame(event.data);
           if (!Array.isArray(messages) || messages.length > 20000) return fail('invalid_frame');
@@ -100,7 +117,7 @@ export class AlpacaFeed {
               this.engine.feeds[this.name] = { status: 'streaming', lastMessage: Date.now(), reconnects: this.reconnects };
             }
             const item = parseMessage(x);
-            if (!item || !authenticated || !this.symbols.includes(item.symbol)) continue;
+            if (!item || !authenticated || this.scheduled===false || !this.symbols.includes(item.symbol)) continue;
             lastData = Date.now();
             this.engine.feeds[this.name] = { ...this.engine.feeds[this.name], status: 'streaming', lastMessage: Date.now(),
               providerTimestamp: item.ts, providerAgeMs: this.engine.clock() - item.ts, hostAgeMs: Date.now() - item.ts, lastKind: item.kind, reconnects: this.reconnects };
@@ -117,7 +134,7 @@ export class AlpacaFeed {
       });
     });
   }
-  stop() { this.stopped = true; this.selectionWaiter?.reject(); clearInterval(this.timer); this.socket?.close(); }
+  stop() { this.stopped = true; clearTimeout(this.windowTimer); this.selectionWaiter?.reject(); clearInterval(this.timer); this.socket?.close(); }
 }
 
 // Deliberately artificial price regimes exercise both accepted and rejected setups.

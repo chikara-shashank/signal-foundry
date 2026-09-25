@@ -17,6 +17,8 @@ export const STRATEGY_REGISTRY = Object.freeze([
     description: 'Equity momentum supported by fresh best-quote depth and flow.' },
   { id: 'noise_area', name: 'Noise-area breakout', trigger: 'session', defaultEnabled: false,
     description: 'Long-only session breakout with half-hour checks and a trailing exit.' },
+  { id: 'close_strength_carry', name: 'Closing strength + news', trigger: 'session', defaultEnabled: false,
+    description: 'Paper/shadow multi-session long entries at 15:30–15:55 ET; material favorable news, closing strength, GTC protection and a shared overnight allocation cap.' },
 ].map(entry => Object.freeze(entry)));
 
 const byId = new Map(STRATEGY_REGISTRY.map(s => [s.id, s]));

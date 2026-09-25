@@ -41,6 +41,15 @@ export function config(env = process.env) {
     breakoutMinRewardRisk: num('BREAKOUT_MIN_NET_REWARD_RISK', 1, .1, 5),
   };
   if (!['on','off'].includes(str('BREAKOUT_PROTECTION','on'))) throw new Error('Invalid BREAKOUT_PROTECTION');
+  c.cryptoUniverse = str('CRYPTO_UNIVERSE', c.mode === 'demo' ? 'static' : 'top25');
+  if (!['static','top25','off'].includes(c.cryptoUniverse) || (c.mode !== 'demo' && c.cryptoUniverse === 'static')) throw new Error('Provider crypto must use CRYPTO_UNIVERSE=top25 or off');
+  if (c.cryptoUniverse === 'off') c.crypto=[];
+  if (c.mode === 'demo' && c.cryptoUniverse === 'top25') throw new Error('Demo uses a static synthetic crypto universe');
+  c.overnight = { enabled: str('OVERNIGHT_ENTRIES', ['paper','shadow'].includes(c.mode) ? 'on' : 'off') === 'on',
+    capFraction: num('OVERNIGHT_ALLOCATION_FRACTION', .095, .001, .095), positionFraction: num('OVERNIGHT_POSITION_FRACTION', .035, .001, .095),
+    sessions: num('OVERNIGHT_MAX_SESSIONS', 3, 1, 10) };
+  if (!['on','off'].includes(str('OVERNIGHT_ENTRIES', ['paper','shadow'].includes(c.mode) ? 'on' : 'off')) || !Number.isInteger(c.overnight.sessions)) throw new Error('Invalid overnight policy');
+  c.desk = { enabled:c.mode!=='demo', newsPollMs:900000, maxModelCallsPerDay:24, closeScanDelayMs:120000 };
   c.universe = { mode: str('EQUITY_UNIVERSE', c.mode === 'demo' ? 'static' : 'all'),
     refreshMs: num('UNIVERSE_REFRESH_SECONDS', 300, 120, 3600) * 1000,
     streamLimit: num('UNIVERSE_STREAM_LIMIT', c.feed === 'iex' ? 30 : 60, 1, c.feed === 'iex' ? 30 : 200),
@@ -57,8 +66,8 @@ export function config(env = process.env) {
   if (!['off', 'shadow', 'filter'].includes(c.jevMode)) throw new Error('Invalid JEV_MODE');
   if (!['iex', 'sip'].includes(c.feed) || !['us', 'us-1'].includes(c.cryptoLocation)) throw new Error('Invalid market feed');
   if (c.token.length < 32 || c.token.startsWith('replace-')) throw new Error('Set a random DASHBOARD_TOKEN of at least 32 characters (see README)');
-  if (!c.equities.every(s => /^[A-Z][A-Z0-9.]{0,9}$/.test(s)) || !c.crypto.every(s => ['BTC/USD', 'ETH/USD'].includes(s))) throw new Error('Invalid symbol universe');
-  if (!c.equities.length && !c.crypto.length && c.universe.mode === 'static') throw new Error('Empty universe');
+  if (!c.equities.every(s => /^[A-Z][A-Z0-9.]{0,9}$/.test(s)) || !c.crypto.every(s => /^[A-Z0-9]{2,15}\/USD$/.test(s))) throw new Error('Invalid symbol universe');
+  if (!c.equities.length && !c.crypto.length && c.universe.mode === 'static' && c.cryptoUniverse !== 'top25') throw new Error('Empty universe');
   if (new Set(c.strategies).size !== c.strategies.length || !c.strategies.every(s => strategyDefinition(s))) throw new Error('Invalid STRATEGIES');
   if (c.strategies.includes('noise_area')) {
     if (c.mode === 'demo') throw new Error('noise_area needs provider sessions and history; use shadow, paper or live');
@@ -70,7 +79,7 @@ export function config(env = process.env) {
   if (c.jevMode !== 'off' && !c.jevKey) throw new Error('TYPESAFE_API_KEY required for Jev');
   if (c.mode === 'demo' && c.jevMode !== 'off') throw new Error('Demo forbids paid model calls; use shadow/paper for Jev');
   if (c.mode === 'live' && (c.liveAck !== 'I_ACCEPT_REAL_MONEY_RISK' || !c.expectedAccount)) throw new Error('Live mode requires LIVE_ACK and EXPECTED_ACCOUNT_ID');
-  if (c.mode === 'live' && c.crypto.length && c.cryptoAck !== 'I_ACCEPT_SOFTWARE_EXIT_OUTAGE_RISK') throw new Error('Live crypto requires LIVE_CRYPTO_ACK or empty CRYPTO_SYMBOLS');
+  if (c.mode === 'live' && (c.crypto.length || c.cryptoUniverse === 'top25') && c.cryptoAck !== 'I_ACCEPT_SOFTWARE_EXIT_OUTAGE_RISK') throw new Error('Live crypto requires LIVE_CRYPTO_ACK or CRYPTO_UNIVERSE=off');
   if (c.maxPosition > c.maxGross || c.maxGross > c.capital || c.maxGroup > c.maxGross || !Number.isInteger(c.maxPositions)) throw new Error('Inconsistent allocation limits');
   c.symbols = [...c.equities, ...c.crypto];
   c.brokerUrl = c.mode === 'live' ? 'https://api.alpaca.markets' : 'https://paper-api.alpaca.markets';

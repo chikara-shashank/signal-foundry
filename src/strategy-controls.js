@@ -17,9 +17,11 @@ export class StrategyControls {
     for (const { id } of STRATEGY_REGISTRY) {
       const setting = saved?.strategies[id];
       if (setting && (typeof setting.enabled !== 'boolean' || !Number.isSafeInteger(setting.generation) || setting.generation < 0 || !Number.isFinite(setting.changedAt))) throw new Error('Invalid saved strategy setting: ' + id);
-      // New strategies on an existing installation are off until explicitly enabled.
+      // New strategies default off. The explicitly requested carry experiment is
+      // seeded by OVERNIGHT_ENTRIES; a saved manual choice always wins.
       if(setting?.addToWinners!==undefined && typeof setting.addToWinners!=='boolean')throw new Error('Invalid saved add-to-winners setting: '+id);
-      this.state.strategies[id] = { addToWinners:false,...(setting ?? { enabled: saved ? false : engine.cfg.strategies.includes(id), generation: 0, changedAt: 0 }) };
+      const requestedCarry=id==='close_strength_carry'&&engine.cfg.overnight.enabled&&['paper','shadow'].includes(engine.cfg.mode);
+      this.state.strategies[id] = { addToWinners:false,...(setting ?? { enabled: requestedCarry || (!saved && engine.cfg.strategies.includes(id)), generation: 0, changedAt: 0 }) };
     }
   }
   enabled(id) { return this.state.strategies[id]?.enabled === true; }
@@ -31,6 +33,7 @@ export class StrategyControls {
     if (!definition) return 'Historical strategy; no installed execution handler.';
     if (id === 'noise_area' && e.portfolio.state.reservedSymbols.includes(e.cfg.noiseSymbol)) return 'Underlying reserved by an external holding; no idle capital reserved.';
     if (definition.trigger === 'session') {
+      if(id==='close_strength_carry')return !['paper','shadow'].includes(e.cfg.mode)?'Carry entries are a paper/shadow experiment.':!e.cfg.overnight.enabled?'Overnight entries are disabled in configuration.':!e.desk||!e.schedule?'Closing research and calendar services are not running.':null;
       if (id !== 'noise_area') return 'Session execution handler is not installed.';
       return noiseUnavailable(e.cfg) ?? (!e.noiseArea ? 'Session execution handler is not running.' : null);
     }
@@ -95,7 +98,7 @@ export class StrategyControls {
       return { id, name: definition?.name ?? id.replaceAll('_', ' '), description: definition?.description ?? 'Retained journal history; execution is not configurable here.',
         qualification: qualification(e,id),
         riskPolicy: id === 'noise_area' ? { sizing:'fixed_notional', notional:e.cfg.noiseNotional, nominalStopRisk:e.cfg.noiseNotional*e.cfg.noiseStopBps/10000, reservation:e.noiseReservation(), dailyLoss:e.dailyLossLimit }
-          : { sizing:'stop_risk_budget', risk:e.cfg.risk, maxPosition:e.cfg.maxPosition, dailyLoss:e.dailyLossLimit },
+          : { sizing:'stop_risk_budget', risk:e.cfg.risk, maxPosition:e.cfg.maxPosition, dailyLoss:e.dailyLossLimit, ...(id==='close_strength_carry'?{overnight:e.cfg.overnight}: {}) },
         trigger: definition?.trigger ?? 'historical', installed: !!definition, enabled: setting?.enabled ?? false,
         additions:{supported:supportsAdditions(id),enabled:this.additionsEnabled(id),available:e.cfg.mode!=='live' && e.cfg.breakoutProtection,
           policy:ADD_POLICY,closed:closed.filter(t=>t.addedQty>0).length,
@@ -113,7 +116,7 @@ export class StrategyControls {
     const experiments = [...new Map(orders.filter(o => o.kind === 'entry').map(o => [o.experiment?.experimentId ?? 'legacy', { id:o.experiment?.experimentId ?? 'legacy', strategy:o.strategy, codeHash:o.experiment?.codeHash ?? null }])).values()];
     for (const s of strategies) if (!experiments.some(x => x.id === s.qualification.experimentId)) experiments.push({ id:s.qualification.experimentId, strategy:s.id, codeHash:s.qualification.codeHash });
     if(filter.experimentId&&!experiments.some(x=>x.id===filter.experimentId))experiments.push({id:filter.experimentId,strategy:'Selected historical version',codeHash:null});
-    return { filter, experiments, revision: this.state.revision, sessionId: String(e.startedAt), mode: e.cfg.mode, now, paused: e.operatorPause, ready: e.ready && (!e.universe||e.universe.entryReady(now)) && (e.broker.entryBudgetAvailable?.() ?? true),
+    return { filter, experiments, revision: this.state.revision, sessionId: String(e.startedAt), mode: e.cfg.mode, now, paused: e.operatorPause, ready: e.ready && !e.operatorPause && Object.values(e.entryAvailability()).some(x=>x.ready) && (e.broker.entryBudgetAvailable?.() ?? true),
       strategies, note: 'Cumulative local strategy fills across restarts. Realized net includes partial exits and recorded or estimated trading fees; model/cloud costs are excluded. Win rate counts only fully closed trades with positive net P/L. Open P/L is separate, before fees, using fresh bids or the last reconciled broker mark. Switching off preserves history and position management; cancellation and fills can race. Partial-entry cancellations may trigger a protective exit.' };
   }
 }

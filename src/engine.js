@@ -17,6 +17,8 @@ import { RELEASE } from './release.js';
 import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
 import { additionPolicy, additionCandidate, checkAddition, observeCampaign } from './pyramiding.js';
 import { campaignId, campaignEntries, campaignQty, remainingQty } from './position-book.js';
+import { recordTradeMarks } from './trade-performance.js';
+import { CARRY_STRATEGY, carryGuard, overnightAllocation, adverseNews } from './overnight-policy.js';
 import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar, quoteOrder, faultDetail } from './util.js';
 
 export class Engine {
@@ -81,6 +83,7 @@ export class Engine {
   }
   onQuote(q) {
     if(this.stopped)return;
+    if(!isCrypto(q.symbol)&&this.schedule&&!this.schedule.state().equityTracking)return;
     if (!this.cfg.symbols.includes(q.symbol)) return;
     if (!validateQuote(q, this.clock(), this.cfg.maxQuoteAge)) {
       const reason = !Number.isFinite(q.ts) ? 'invalid_quote_timestamp' : q.ts > this.clock() + 1000 ? 'quote_timestamp_in_future'
@@ -146,6 +149,7 @@ export class Engine {
   }
   async onBar(b, warmup = false) {
     if(this.stopped)return;
+    if(!warmup&&!isCrypto(b.symbol)&&this.schedule&&!this.schedule.state().equityTracking)return;
     if (!validBar(b) || !this.cfg.symbols.includes(b.symbol)) return;
     if (!warmup && this.stockHistory && !isCrypto(b.symbol)) await this.stockHistory.repair(b);
     if(this.stopped)return;
@@ -171,6 +175,7 @@ export class Engine {
     if (now - (b.ts + 60000) > 10000 || this.pendingCandidates >= 100) return;
     const addition=additionCandidate(this,f);
     if(addition)await this.submitCandidate(addition);
+    if(!isCrypto(b.symbol))await this.desk?.onBar(b);
     await this.processCandidates(f, BAR_STRATEGIES);
   }
   // Completed provider bars restored in order, before the next streamed bar for the symbol.
@@ -198,7 +203,7 @@ export class Engine {
     this.store.event('crypto_context', { symbol, bars: latest.count, intervalMs: latest.intervalMs, source: 'provider_5m', version: latest.version }, now);
     if (!warmup && latest.version !== prior && now - (latest.bar.ts + 300000) <= 20000 && this.pendingCandidates < 100) await this.processCandidates(latest, BAR_STRATEGIES);
   }
-  onTrade(t) { this.realtime.trades.apply(t, this.clock()); }
+  onTrade(t) { if(!isCrypto(t.symbol)&&this.schedule&&!this.schedule.state().equityTracking)return;this.realtime.trades.apply(t, this.clock()); }
   latchExit(symbol, entryId, reason, observation) {
     const m = this.managed[symbol];
     if (!m || m.entryId !== entryId || m.exitReason || this.externalSymbols.has(symbol)) return;
@@ -228,6 +233,8 @@ export class Engine {
   }
   async processCandidates(f, strategies) {
     if(this.stopped)return;
+    if(this.schedule&&!isCrypto(f.symbol??'')&&!this.schedule.state().regular)return;
+    if(this.cryptoUniverse&&isCrypto(f.symbol??'')&&!this.cryptoUniverse.allowed(f.symbol))return;
     const now = this.clock();
     this.pendingCandidates++;
     try {
@@ -290,7 +297,14 @@ export class Engine {
     if (this.timebase && !this.timebase.status().synchronized) return deny('clock_not_synchronized');
     const paperTest = c.strategy === 'operator_paper_test';
     if (!this.cfg.symbols.includes(c.symbol)) return deny('symbol_left_universe');
-    if (this.universe && !this.universe.entryReady(now)) return deny('universe_scan_stale');
+    if (isCrypto(c.symbol) && this.cfg.cryptoUniverse==='off') return deny('crypto_entries_disabled');
+    if (!isCrypto(c.symbol) && this.schedule && !this.schedule.state(now).regular) return deny('equity_tracking_window_closed');
+    if (isCrypto(c.symbol) && this.cryptoUniverse && !this.cryptoUniverse.allowed(c.symbol,now)) return deny('crypto_rank_unavailable_or_outside_top25');
+    if (!isCrypto(c.symbol) && this.universe && !this.universe.entryReady(now)) return deny('universe_scan_stale');
+    if (!isCrypto(c.symbol) && adverseNews(this.desk?.currentView(c.symbol,now),now)) return deny('company_news_adverse');
+    if(c.holdingPolicy&&c.strategy!==CARRY_STRATEGY)return deny('carry_policy_invalid');
+    const carry=c.strategy===CARRY_STRATEGY;
+    if(carry){const reason=carryGuard(this,c);if(reason)return deny(reason);}
     if (this.cfg.mode === 'live' && !qualification(this, c.strategy).liveEligible) return deny('strategy_not_live_qualified');
     if (!paperTest && !this.strategyControls.enabled(c.strategy)) return deny('strategy_disabled');
     if (!paperTest && (c.strategyGeneration ?? 0) !== this.strategyControls.generation(c.strategy)) return deny('strategy_selection_changed');
@@ -308,10 +322,13 @@ export class Engine {
     if (!paperTest && !SESSION_STRATEGIES.includes(c.strategy) && this.snapshots.get(c.symbol)?.version !== (c.features.barVersion ?? c.features.version)) return deny('superseded_snapshot');
     if (c.strategy === 'order_flow_continuation' && now - c.features.micro.ts > 1000) return deny('microstructure_signal_expired');
     const riskConfig = { ...this.cfg, strategies: this.strategyControls.enabledIds(), noiseReservationEligible: this.noiseReservation().eligible, ...(paperTest ? { maxPosition: Math.min(this.cfg.maxPosition, isCrypto(c.symbol) ? 25 : c.reference * 1.02) } : {}) };
+    const carryAllocation=carry?overnightAllocation(this):null;
+    if(carry)riskConfig.maxPosition=Math.min(riskConfig.maxPosition,carryAllocation.headroom,carryAllocation.base*this.cfg.overnight.positionFraction);
     const shared = this.cfg.accountPolicy === 'shared';
     const riskAccount = shared ? { ...this.account, cash: Math.min(this.account.cash, this.portfolio.state.cashAvailable) } : this.account;
     const decision = sizeEntry(addition ? {...c,stop:addition.stop,target:addition.target} : c, this.quotes.get(c.symbol), riskAccount, shared ? this.portfolio.positions : this.positions, this.pending(), riskConfig, this.assets.get(c.symbol), now, this.session, addition);
     if(addition && decision.ok)decision.additionPlan=addition;
+    if(carry&&decision.ok&&decision.reserved>carryAllocation.headroom+1e-8)return deny('carry_allocation_limit');
     return decision;
   }
   async enter(c) {
@@ -322,8 +339,9 @@ export class Engine {
     const o = { id: idFor('e', [this.cfg.mode, this.account.id, c.id]), symbol: c.symbol, kind: 'entry', candidateId: c.id, strategy: c.strategy,
       experiment: c.addition ? this.store.getOrder(c.campaignId).experiment : strategyManifest(this, c.strategy),
       ...(c.addition ? {campaignId:c.campaignId,addition:true} : {addPolicy:isCrypto(c.symbol)?null:additionPolicy(this,c.strategy)}),
-      exitPolicy: breakoutPolicy(c, this.cfg), discovery: this.universe?.selection(c.symbol) ?? null,
-      status: 'reserved', ts: now, ...decision, entryDeadline: Math.min(c.expires, now + this.cfg.entryTtl), timeInForce: isCrypto(c.symbol) ? 'ioc' : 'day', feeRateBps: isCrypto(c.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, maxHold: c.maxHold ?? this.cfg.maxHold, legs: [], filledQty: 0, fillPrice: 0 };
+      exitPolicy: breakoutPolicy(c, this.cfg), discovery: isCrypto(c.symbol)?{source:'CoinPaprika',at:this.cryptoUniverse?.state.at??null,row:this.cryptoUniverse?.state.rows.find(r=>r.symbol===c.symbol)??null}:this.universe?.selection(c.symbol) ?? null,
+      ...(c.holdingPolicy?{holdingPolicy:structuredClone(c.holdingPolicy)}:{}),
+      status: 'reserved', ts: now, ...decision, entryDeadline: Math.min(c.expires, now + this.cfg.entryTtl), timeInForce: isCrypto(c.symbol) ? 'ioc' : c.holdingPolicy?.type==='carry'?'gtc':'day', feeRateBps: isCrypto(c.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, maxHold: c.maxHold ?? this.cfg.maxHold, legs: [], filledQty: 0, fillPrice: 0 };
     this.store.order(o);
     this.observability.counts.riskApproved++;
     c.status = 'approved'; c.orderId = o.id; c.allocation = decision; this.store.updateCandidate(c);
@@ -350,6 +368,9 @@ export class Engine {
   }
   async submit(o) {
     this.store.assertLease();
+    if(o.kind==='entry'&&!isCrypto(o.symbol)&&this.schedule&&(!this.schedule.state().regular||o.holdingPolicy?.type==='carry'&&!this.schedule.state().carryWindow)) {
+      o.status='aborted';o.reason='equity_submission_window_closed';this.store.order(o);this.store.event('order_aborted',{id:o.id,reason:o.reason},this.clock());return;
+    }
     this.observability.counts.submissions++;
     this.store.event('order_submitting', { orderId: o.id, symbol: o.symbol, strategy: o.strategy, kind: o.kind, qty: o.qty }, this.clock());
     const started = performance.now();
@@ -370,7 +391,10 @@ export class Engine {
     const previousLegs = local.legs ?? [];
     Object.assign(local, remote, { id: local.id });
     this.observability.fill(local, null, priorFill);
-    if (local.filledQty > priorFill) local.lastFillObservedAt = this.clock();
+    if (local.filledQty > priorFill) {
+      local.lastFillObservedAt = this.clock();
+      if (local.kind === 'entry' && priorFill === 0) local.firstFillObservedAt ??= this.clock();
+    }
     for (const leg of local.legs ?? []) {
       const previous = previousLegs.find(x => x.brokerId === leg.brokerId);
       if(previous?.feeSource==='broker_activity_provisional'&&leg.fee==null){leg.fee=previous.fee;leg.feeSource=previous.feeSource;}
@@ -384,6 +408,7 @@ export class Engine {
       const previous = this.managed[local.symbol]?.entryId === rootId ? this.managed[local.symbol] : {};
       if(!root || (local.addition && (!root.addPolicy || root.symbol!==local.symbol || root.strategy!==local.strategy)))throw new Error('Invalid addition ownership');
       this.managed[local.symbol] = { ...previous, entryId: rootId, strategy: root.strategy, stop: root.stop, target: root.target, maxHold: root.maxHold ?? this.cfg.maxHold, openedAt: previous.openedAt ?? root.filledAt ?? root.lastFillObservedAt ?? root.ts, exitReason: previous.exitReason ?? (local.exitAfterFill ? 'operator_flatten' : null),
+        ...(root.holdingPolicy?{holdingPolicy:root.holdingPolicy}:{}),
         ...(local.addition ? {addFloor:Math.max(previous.addFloor ?? root.stop,local.stop),additionEntryId:local.id} : {}) };
       this.store.set('managed', this.managed);
     }
@@ -424,7 +449,7 @@ export class Engine {
           const urgent = !terminal(o.status) || !o.settledAt || changedQuantity || activeLegsMissing || this.dirtyOrderSymbols.has(o.symbol) || this.managed[o.symbol]?.exitReason;
           // Stable parents are refreshed every 30s. Broker notifications, quantity
           // changes and missing protective legs always require a fresh lookup.
-          if (!snapshot && this.broker.budgetStatus && !urgent && now - (this.orderRefreshAt.get(o.id) ?? 0) < 30000) {
+          if (!snapshot && this.broker.budgetStatus && !urgent && now - (this.orderRefreshAt.get(o.id) ?? 0) < (this.schedule?.parentRefreshInterval(o.symbol)??30000)) {
             for (const leg of o.legs ?? []) if (observed.has(leg.brokerId)) Object.assign(leg, observed.get(leg.brokerId));
             this.store.order(o); continue;
           }
@@ -490,7 +515,11 @@ export class Engine {
         if (this.store.get(this.lossHaltKey(now), false)) this.issues.push('daily_loss_limit');
         this.ready = this.issues.length === 0;
         this.accounting.observeDay(now);
+        this.desk?.enforceAllocation(now);
         for (const o of this.pending().filter(o => o.kind === 'entry')) {
+          if(!isCrypto(o.symbol)&&this.schedule&&(!this.schedule.state(now).regular||o.holdingPolicy?.type==='carry'&&!this.schedule.state(now).carryWindow)) {o.entryDisableRequested=true;this.store.order(o);}
+          if(isCrypto(o.symbol)&&this.cryptoUniverse&&!this.cryptoUniverse.allowed(o.symbol,now)){o.entryDisableRequested=true;this.store.order(o);}
+          if(isCrypto(o.symbol)&&this.cfg.cryptoUniverse==='off'){o.entryDisableRequested=true;this.store.order(o);}
           if(o.addition && !this.strategyControls.additionsEnabled(o.strategy) && !terminal(o.status)) { o.entryDisableRequested=true; this.store.order(o); }
           if (o.strategy !== 'operator_paper_test' && !this.strategyControls.enabled(o.strategy) && !terminal(o.status) && o.filledQty < o.qty && !o.entryDisableRequested) {
             o.entryDisableRequested = true; this.store.order(o);
@@ -510,6 +539,9 @@ export class Engine {
           this.store.event('agent_equity', { dailyPnl: book.dailyPnl, unrealized: book.unrealized, observedAt: account.ts }, now);
           this.lastEquityRecord = now;
         }
+        // Chart collection is observational; its failure must not disable exits.
+        try { recordTradeMarks(this); this.tradeMarkError = null; }
+        catch { this.tradeMarkError = 'Trade chart history could not be saved'; }
       } catch (error) {
         this.protection = { ...this.protection, state: 'blocked', reason: faultDetail(error) };
         this.fail('broker_reconciliation_failed', error); this.lastLoop = Date.now();
@@ -535,13 +567,22 @@ export class Engine {
       if (this.issues.includes('daily_loss_limit')) m.exitReason = 'daily_loss_limit';
       if (lots.some(o=>o.filledQty>0 && ['canceled', 'expired', 'rejected'].includes(o.status))) m.exitReason ||= 'partial_entry_canceled';
       if (adding && lots.some(o=>remainingQty(all,o)<o.filledQty))m.exitReason ||= 'campaign_lot_exit';
-      if (!isCrypto(symbol) && this.session.open && this.session.close - now < 5 * 60000) m.exitReason ||= 'session_end';
-      if (now - m.openedAt > m.maxHold) m.exitReason ||= 'holding_time';
+      const carry=parent?.holdingPolicy?.type==='carry';
+      if (!carry && !isCrypto(symbol) && this.session.open && this.session.close - now < 5 * 60000) m.exitReason ||= 'session_end';
+      if (carry ? now>=parent.holdingPolicy.exitBy : now - m.openedAt > m.maxHold) m.exitReason ||= carry?'carry_holding_deadline':'holding_time';
+      if(carry) {
+        const news=this.desk?.currentView(symbol,now);
+        if(adverseNews(news,now))m.exitReason||='carry_news_invalidated';
+        if(this.cfg.mode==='paper'&&now-m.openedAt>30000&&(!activeStop||parent.brokerTimeInForce!=='gtc'||!native.some(l=>l.type==='stop'&&l.brokerTimeInForce==='gtc')))m.exitReason||='carry_broker_protection_missing';
+      }
       if (fresh && q.bid <= m.stop && !activeStop) m.exitReason ||= 'stop';
       if (fresh && m.addFloor && q.bid<=m.addFloor)m.exitReason ||= 'addition_profit_protection';
       if (fresh && q.bid >= m.target && !native.some(l => l.type === 'limit')) m.exitReason ||= 'target';
       if (!m.exitReason) continue;
       this.store.set('managed', this.managed);
+      // Keep resting GTC protection intact overnight. A queued market sell can
+      // otherwise race tomorrow's bracket exits or lose its protective stop.
+      if(!isCrypto(symbol)&&this.cfg.mode!=='demo'&&(!this.session.open||this.schedule&&(!this.schedule.state().regular||this.schedule.state().today.close-this.clock()<=30000)))continue;
       if (this.pending().some(o => o.symbol === symbol && o.kind === 'exit')) continue;
       const unfinished=lots.filter(o=>!terminal(o.status));
       if (unfinished.length) { for(const lot of unfinished)if(!uncertain(lot.status))await this.cancel(lot); continue; }
@@ -633,16 +674,23 @@ export class Engine {
           contextAt: this.snapshots.get(symbol)?.bar.ts ?? null, latestDecision: recent.find(c => c.symbol === symbol) ?? null })) } };
     return this.researchCache;
   }
+  entryAvailability() {
+    const now=this.clock(), schedule=this.schedule?.state(now), cutoff=this.strategyControls.enabled(CARRY_STRATEGY)&&schedule?.carryWindow?300000:600000;
+    const equityBlockers=[...(!this.session?.open||this.session.close-now<cutoff||schedule&&!schedule.regular?['equity_session_closed_or_closing']:[]),...(this.universe&&!this.universe.entryReady(now)?['universe_scan_stale']:[]),...(!this.cfg.equities.some(s=>validateQuote(this.quotes.get(s),now,this.cfg.maxQuoteAge))?['equity_quotes_missing_or_stale']:[])];
+    const allowed=this.cfg.crypto.filter(s=>this.cfg.cryptoUniverse!=='off'&&(!this.cryptoUniverse||this.cryptoUniverse.allowed(s,now)));
+    const cryptoBlockers=[...(!allowed.length?['crypto_rank_unavailable_or_disabled']:[]),...(!allowed.some(s=>validateQuote(this.quotes.get(s),now,this.cfg.maxQuoteAge))?['crypto_quotes_missing_or_stale']:[])];
+    return {equity:{ready:!equityBlockers.length,blockers:equityBlockers},crypto:{ready:!cryptoBlockers.length,blockers:cryptoBlockers}};
+  }
   status() {
     const now = this.clock();
     const clockBlocked = this.timebase && !this.timebase.status().synchronized;
-    const sessionBlocked = !this.cfg.crypto.length && (!this.session?.open || this.session.close-now<600000);
-    const quotesBlocked = !this.cfg.symbols.some(symbol => (isCrypto(symbol)||this.session?.open) && validateQuote(this.quotes.get(symbol),now,this.cfg.maxQuoteAge));
+    const assetReadiness=this.entryAvailability(), eligible=assetReadiness.equity.ready||assetReadiness.crypto.ready;
     return { version: RELEASE.version, release:RELEASE, backup:this.store.get('backupStatus'), cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
       issues: [...new Set([...this.issues, ...(clockBlocked ? ['clock_not_synchronized'] : [])])],
       diagnostics: marketDiagnostics(this), protection: protectionHealth(this), noiseReservation: this.noiseReservation(),
-      entryReady: this.ready && !clockBlocked && !sessionBlocked && !quotesBlocked && !this.operatorPause && (!this.universe||this.universe.entryReady(now)) && (this.broker.entryBudgetAvailable?.() ?? true),
-      entryBlockers: [...this.issues, ...(this.universe&&!this.universe.entryReady(now)?['universe_scan_stale']:[]), ...(quotesBlocked ? ['market_quotes_missing_or_stale'] : []), ...(sessionBlocked ? ['equity_session_closed_or_closing'] : []), ...(clockBlocked ? ['clock_not_synchronized'] : []), ...(this.operatorPause ? ['operator_pause'] : []), ...(this.broker.entryBudgetAvailable && !this.broker.entryBudgetAvailable() ? ['broker_request_budget'] : [])],
+      entryReady: this.ready && !clockBlocked && eligible && !this.operatorPause && (this.broker.entryBudgetAvailable?.() ?? true), assetReadiness,
+      entryBlockers: [...this.issues, ...(!eligible?[...assetReadiness.equity.blockers,...assetReadiness.crypto.blockers]:[]), ...(clockBlocked ? ['clock_not_synchronized'] : []), ...(this.operatorPause ? ['operator_pause'] : []), ...(this.broker.entryBudgetAvailable && !this.broker.entryBudgetAvailable() ? ['broker_request_budget'] : [])],
+      schedule:this.schedule?.state(now)??null,cryptoUniverse:this.cryptoUniverse?.status()??{mode:this.cfg.cryptoUniverse},
       reconciliation: { ...this.externalDetails, policy: this.cfg.accountPolicy, blocking: this.issues.some(x => ['external_account_activity', 'external_orders_pending', 'managed_position_conflict', 'agent_accounting_unavailable'].includes(x)), reservedSymbols: this.portfolio.state.reservedSymbols, observedAt: this.lastReconcile,
         guidance: this.cfg.accountPolicy === 'shared' ? 'External holdings remain in this account and are never adopted or closed by the agents. Their symbols and option underlyings are reserved. Agent limits use only the managed book; pending external orders and managed-quantity discrepancies still block new entries.' : 'Entries require an account reconciled with this engine journal. Existing holdings and orders from other tools remain external. Restore the matching journal if these were engine orders, or reconcile them separately in your broker account. Resume and changing the loss ceiling do not adopt external holdings.' },
       account: this.account && { equity: this.account.equity, cash: this.account.cash, buyingPower: this.account.buyingPower }, dailyPnl: this.dailyPnl ?? 0,

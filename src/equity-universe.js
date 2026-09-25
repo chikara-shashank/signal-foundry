@@ -44,7 +44,7 @@ export function contextShortlist(rows, strategies, limit, offset=0) {
 export class EquityUniverse {
   constructor(engine, fetchFn=fetch, wait=sleep) {
     this.engine=engine;this.fetch=fetchFn;this.wait=wait;this.busy=false;this.lastAttempt=0;this.offset=0;
-    this.state={mode:engine.cfg.universe.mode,state:'starting',lastCompleteAt:null,selected:[],note:'All eligible Alpaca-listed stocks and ETFs are screened. Exact strategy checks run on a rotating shortlist. Float and company-news filters are unavailable.'};
+    this.state={mode:engine.cfg.universe.mode,state:'starting',lastCompleteAt:null,selected:[],note:'All eligible Alpaca-listed stocks and ETFs are screened. Exact strategy checks run on a rotating shortlist. Float metadata is unavailable; company-news research appears in Sessions & tomorrow’s watchlist.'};
     this.selectedAt=new Map();this.feed=null;
   }
   // Restore positions and the last subscribed set before the first broker reconciliation.
@@ -61,8 +61,14 @@ export class EquityUniverse {
   }
   pins() {
     const e=this.engine;
-    return [...new Set([...Object.keys(e.managed),...e.pending().map(o=>o.symbol),
+    const owned=[...new Set([...Object.keys(e.managed),...e.pending().map(o=>o.symbol),
       ...(e.cfg.noiseSymbol&&(!e.assets.size||e.assets.get(e.cfg.noiseSymbol)?.tradable)?[e.cfg.noiseSymbol]:[])])].filter(s=>!isCrypto(s));
+    return [...owned,...(e.desk?.watchSymbols()??[]).filter(s=>!owned.includes(s)&&e.assets.get(s)?.tradable).slice(0,Math.max(0,e.cfg.universe.streamLimit-owned.length))];
+  }
+  async primeWatchlist() {
+    const e=this.engine,selected=[...new Set([...this.pins(),...e.cfg.equities])].slice(0,e.cfg.universe.streamLimit);
+    await e.mutex.run(()=>{e.cfg.equities=selected;e.cfg.symbols=[...selected,...e.cfg.crypto];e.realtime.trades.setSymbols(e.cfg.symbols);this.state.subscriptionReady=false;});
+    await this.feed?.setSymbols(selected);
   }
   entryReady(now) { return this.state.lastCompleteAt!=null && now-this.state.lastCompleteAt<=Math.max(900000,this.engine.cfg.universe.refreshMs*3) && this.state.subscriptionReady!==false; }
   selection(symbol) { return {scanId:this.state.scanId,scannedAt:this.state.lastCompleteAt,feed:this.engine.cfg.feed,row:this.state.selected.find(x=>x.symbol===symbol)??null}; }
@@ -76,6 +82,7 @@ export class EquityUniverse {
   }
   async poll(force=false) {
     const e=this.engine,p=e.cfg.universe,now=e.clock();
+    if(e.schedule&&!e.schedule.state(now).equityTracking){this.state.state='scheduled_off';return;}
     if(this.busy||e.stopped||(!force&&(!e.session?.open||now-this.lastAttempt<p.refreshMs)))return;
     this.busy=true;this.lastAttempt=now;this.state.state='scanning';
     try {
@@ -86,7 +93,7 @@ export class EquityUniverse {
       if(!symbols.length)throw new Error('universe_empty_asset_master');
       this.state={...this.state,eligibleAssets:symbols.length,scanned:0,scanStartedAt:now,feed:e.cfg.feed};
       for(let i=0;i<symbols.length;i+=200){
-        if(e.stopped)return;
+        if(e.stopped||e.schedule&&!e.schedule.state().equityTracking)return;
         const batch=symbols.slice(i,i+200),snapshots=await this.snapshots(batch);
         for(const symbol of batch){if(snapshots[symbol])returned++;const row=screenSnapshot(symbol,snapshots[symbol],e.cfg,e.clock());
           if(row.eligible)rows.push(row);else rejections[row.reason]=(rejections[row.reason]??0)+1;}
@@ -97,8 +104,10 @@ export class EquityUniverse {
       const strategies=e.strategyControls.enabledIds(),pool=contextShortlist(rows,strategies,p.candidateLimit,this.offset);
       this.offset+=Math.max(1,Math.ceil(p.candidateLimit*.2));
       const end=Math.floor(e.clock()/60000)*60000;
-      const history=pool.length?await e.stockHistory.bars(pool.map(x=>x.symbol),end-150*60000,end):new Map();
-      if(e.stopped)return;
+      if(e.schedule&&!e.schedule.state().equityTracking)return;
+      const contextSymbols=[...new Set([...pool.map(x=>x.symbol),...this.pins()])];
+      const history=contextSymbols.length?await e.stockHistory.bars(contextSymbols,end-150*60000,end):new Map();
+      if(e.stopped||e.schedule&&!e.schedule.state().equityTracking)return;
       for(const row of pool){const features=new Features();let f=null;for(const b of history.get(row.symbol)??[])f=features.add(b,e.clock());
         const reports=f&&end-(f.bar.ts+60000)<=60000?strategies.filter(s=>BAR_STRATEGIES.includes(s)).map(s=>assess(s,f,e.clock()).assessment):[];
         row.matches=reports.filter(x=>x.matched).map(x=>x.strategy);row.contextReady=!!f&&end-(f.bar.ts+60000)<=60000;

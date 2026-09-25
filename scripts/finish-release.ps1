@@ -14,11 +14,11 @@ if ($LASTEXITCODE -ne 0) { throw 'JavaScript syntax validation failed.' }
 & node --test --test-concurrency=1 test/*.test.js
 if ($LASTEXITCODE -ne 0) { throw 'Tests failed; nothing has been committed or deployed.' }
 # Explicit source paths exclude credentials, runtime journals and generated backups.
-Git-Checked add .dockerignore .gitignore Dockerfile README.md compose.yaml package.json public scripts src test docs
+Git-Checked add .dockerignore .gitignore .env.example Dockerfile README.md compose.yaml package.json public scripts src test docs
 & git diff --cached --quiet
 $stagedExit = $LASTEXITCODE
 if ($stagedExit -eq 1) {
-  Git-Checked commit -m 'Add controlled pyramiding with lot accounting and paired replay'
+  Git-Checked commit -m 'Add session scheduling, ranked crypto, closing-news carry research and trade returns'
 } elseif ($stagedExit -ne 0) { throw 'Cannot inspect staged changes.' }
 if ($branch -ne 'main') {
   Git-Checked switch main

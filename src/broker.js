@@ -6,7 +6,8 @@ export class BrokerError extends Error {
 }
 
 export function normalizeOrder(o) {
-  return { brokerId: o.id, id: o.client_order_id, symbol: canonical(o.symbol), status: String(o.status).toLowerCase(),
+  return { brokerId: o.id, id: o.client_order_id, symbol: canonical(o.symbol,o.asset_class), status: String(o.status).toLowerCase(),
+    brokerTimeInForce:o.time_in_force??null,
     ...(Number.isFinite(Date.parse(o.filled_at)) ? { filledAt: Date.parse(o.filled_at) } : {}),
     ...(Number.isFinite(Date.parse(o.submitted_at)) ? { submittedAt: Date.parse(o.submitted_at) } : {}),
     side: o.side, qty: Number(o.qty), filledQty: Number(o.filled_qty ?? 0), fillPrice: Number(o.filled_avg_price ?? 0),
@@ -45,9 +46,9 @@ export class AlpacaBroker {
     return { open: x.is_open, close: Date.parse(x.next_close), ts: this.timebase?.now() ?? now, providerTime: Date.parse(x.timestamp) };
   }
   async assets() {
-    const classes = [...(this.cfg.equities.length || this.cfg.universe?.mode === 'all' ? ['us_equity'] : []), ...(this.cfg.crypto.length ? ['crypto'] : [])];
+    const classes = [...(this.cfg.equities.length || this.cfg.universe?.mode === 'all' ? ['us_equity'] : []), ...(this.cfg.crypto.length || this.cfg.cryptoUniverse === 'top25' ? ['crypto'] : [])];
     const all = (await Promise.all(classes.map(c => this.request(`/v2/assets?status=active&asset_class=${c}`)))).flat();
-    return new Map(all.map(a => [canonical(a.symbol), { tradable: a.tradable, assetClass: a.class, status: a.status, exchange: a.exchange, name: a.name, min_order_size: Number(a.min_order_size ?? 1), min_trade_increment: Number(a.min_trade_increment ?? 1), price_increment: Number(a.price_increment ?? .01) }]));
+    return new Map(all.map(a => [canonical(a.symbol,a.class), { tradable: a.tradable, assetClass: a.class, status: a.status, exchange: a.exchange, name: a.name, min_order_size: Number(a.min_order_size ?? 1), min_trade_increment: Number(a.min_trade_increment ?? 1), price_increment: Number(a.price_increment ?? .01) }]));
   }
   // Trading sessions with their actual open and close, including early closes.
   async calendar(start, end) {
@@ -55,7 +56,7 @@ export class AlpacaBroker {
     return rows.map(r => ({ date: r.date, open: nyTimestamp(r.date, r.open), close: nyTimestamp(r.date, r.close) }));
   }
   async positions(priority = 'normal') {
-    return (await this.request('/v2/positions', 'GET', undefined, priority)).map(p => ({ symbol: canonical(p.symbol), qty: Number(p.qty), availableQty: Number(p.qty_available ?? p.qty), entryPrice: Number(p.avg_entry_price), marketValue: Number(p.market_value), unrealized: Number(p.unrealized_pl), side: p.side, assetClass: p.asset_class }));
+    return (await this.request('/v2/positions', 'GET', undefined, priority)).map(p => ({ symbol: canonical(p.symbol,p.asset_class), qty: Number(p.qty), availableQty: Number(p.qty_available ?? p.qty), entryPrice: Number(p.avg_entry_price), marketValue: Number(p.market_value), unrealized: Number(p.unrealized_pl), side: p.side, assetClass: p.asset_class }));
   }
   async openOrders(priority = 'normal') {
     const rows = await this.request('/v2/orders?status=open&nested=true&limit=500', 'GET', undefined, priority);
@@ -73,7 +74,7 @@ export class AlpacaBroker {
   async submit(intent) {
     const crypto = isCrypto(intent.symbol);
     const body = { symbol: intent.symbol, qty: String(intent.qty), side: intent.kind === 'entry' ? 'buy' : 'sell',
-      type: intent.kind === 'entry' ? 'limit' : 'market', time_in_force: crypto ? intent.kind === 'entry' ? 'ioc' : 'gtc' : 'day', client_order_id: intent.id };
+      type: intent.kind === 'entry' ? 'limit' : 'market', time_in_force: crypto ? intent.kind === 'entry' ? 'ioc' : 'gtc' : intent.kind === 'entry' && intent.holdingPolicy?.type === 'carry' ? 'gtc' : 'day', client_order_id: intent.id };
     if (intent.kind === 'entry') {
       body.limit_price = String(intent.limit);
       if (!crypto) Object.assign(body, { order_class: 'bracket', take_profit: { limit_price: String(intent.target) }, stop_loss: { stop_price: String(intent.stop) } });

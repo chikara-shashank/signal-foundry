@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { timingSafeEqual } from 'node:crypto';
 import { chartData, performanceData } from './telemetry.js';
+import { tradePerformanceData } from './trade-performance.js';
 import { activityPage } from './observability.js';
 import { createQuoteStream, intervalWidth } from './realtime.js';
 import { jevTracePage, jevTraceDetail } from './jev-traces.js';
@@ -13,6 +14,10 @@ export function createDashboard(engine, cfg) {
   files.set('/strategy-controls.css', ['strategy-controls.css', 'text/css']);
   files.set('/options-lab.js', ['options-lab.js', 'text/javascript']);
   files.set('/discovery.js', ['discovery.js', 'text/javascript']);
+  files.set('/trade-performance.js', ['trade-performance.js', 'text/javascript']);
+  files.set('/trade-performance.css', ['trade-performance.css', 'text/css']);
+  files.set('/session-research.js', ['session-research.js', 'text/javascript']);
+  files.set('/session-research.css', ['session-research.css', 'text/css']);
   const token = Buffer.from(cfg.token);
   const stream = createQuoteStream(engine);
   const server = createServer(async (req, res) => {
@@ -36,6 +41,7 @@ export function createDashboard(engine, cfg) {
         return stream.open(req, res, symbol, interval);
       }
       if (path === '/api/status' && req.method === 'GET') return json(200, engine.status());
+      if (path === '/api/session-research' && req.method === 'GET') return json(200,{now:engine.clock(),mode:cfg.mode,schedule:engine.schedule?.state()??null,crypto:engine.cryptoUniverse?.status()??{mode:cfg.cryptoUniverse},desk:engine.desk?.snapshot()??null});
       if (path === '/api/accounting' && req.method === 'GET') return json(200, engine.accounting.snapshot());
       if (path === '/api/incidents' && req.method === 'GET') return json(200, Object.values(engine.store.get('executionIncidents',{})));
       if (path === '/api/readiness' && req.method === 'GET') { const s=engine.status();return json(s.protection.healthy?200:503,{alive:Date.now()-engine.lastLoop<60000,entryReady:s.entryReady,entryBlockers:s.entryBlockers,protection:s.protection}); }
@@ -57,6 +63,7 @@ export function createDashboard(engine, cfg) {
         return trace ? json(200, trace) : json(404, { error: 'Trace no longer retained' });
       }
       if (path === '/api/performance' && req.method === 'GET') return json(200, performanceData(engine, new URL(req.url, 'http://localhost').searchParams.get('scope') ?? undefined));
+      if (path === '/api/trade-performance' && req.method === 'GET') return json(200, tradePerformanceData(engine, Number(new URL(req.url, 'http://localhost').searchParams.get('days') ?? 1)));
       if (path === '/api/insights' && req.method === 'GET') {
         const symbol = new URL(req.url, 'http://localhost').searchParams.get('symbol');
         if (!cfg.symbols.includes(symbol)) return json(400, { error: 'Choose a configured symbol' });

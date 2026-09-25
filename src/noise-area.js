@@ -15,6 +15,7 @@ export class NoiseArea {
   state = null; busy = false; deciding = false; retryAt = 0; lastDecision = null; reason = 'waiting_for_session';
   constructor(engine, venue, history) { Object.assign(this, { engine, venue, history, symbol: engine.cfg.noiseSymbol }); }
   async tick(now) {
+    if(this.engine.schedule&&!this.engine.schedule.state(now).equityTracking){this.reason='equity_tracking_scheduled_off';return;}
     if (!this.engine.strategyControls.enabled(NOISE_STRATEGY) && this.engine.managed[this.symbol]?.strategy !== NOISE_STRATEGY) { this.reason = 'strategy_disabled'; return; }
     if (!this.engine.session?.open) { this.reason = 'equity_session_closed'; return; }
     await this.prepare(now);

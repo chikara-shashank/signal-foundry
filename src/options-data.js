@@ -13,13 +13,14 @@ export const normalizeOptionQuote = x => ({ bid: x.latestQuote?.bp, ask: x.lates
 
 // This adapter has no order/exercise/account mutation endpoint or method.
 export class OptionsData {
-  constructor({ key, secret, fetchFn = fetch, now = Date.now }) {
+  constructor({ key, secret, fetchFn = fetch, now = Date.now, canRead = () => true }) {
     if (!key || !secret) throw new Error('options_credentials_required');
     this.headers = { 'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret };
-    this.fetch = fetchFn; this.localNow = now; this.offset = 0; this.cache = new Map();
+    this.fetch = fetchFn; this.localNow = now; this.canRead=canRead; this.offset = 0; this.cache = new Map();
     this.budget = sharedBrokerBudget({ key, brokerUrl: PAPER }, fetchFn);
   }
   async get(host, path, params = {}) {
+    if(!this.canRead())throw new Error('options_data_scheduled_off');
     const approved = host === PAPER ? /^\/v2\/(clock|calendar|options\/contracts)$/.test(path)
       : host === DATA && /^\/(v2\/stocks\/(SPY|QQQ)\/bars|v2\/stocks\/quotes\/latest|v1beta1\/options\/snapshots)$/.test(path);
     if (!approved) throw new Error('options_read_only_endpoint');

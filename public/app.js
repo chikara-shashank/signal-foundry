@@ -5,6 +5,8 @@ import { JevLog } from './jev-log.js';
 import { StrategyControlsView } from './strategy-controls.js';
 import { OptionsLabView } from './options-lab.js';
 import { DiscoveryView } from './discovery.js';
+import { TradePerformanceView } from './trade-performance.js';
+import { SessionResearchView } from './session-research.js';
 let token = '', busy = false, selectedSymbol = '', selectedInterval = 1, latestStatus = null, latestChart = null, chartSequence = 0, selectedEvent = null;
 const $ = id => document.getElementById(id);
 const money = n => n == null ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
@@ -26,6 +28,8 @@ const jevLog = new JevLog(api);
 const strategyControls = new StrategyControlsView(api);
 const optionsLab = new OptionsLabView(api);
 const discovery = new DiscoveryView();
+const sessionResearch = new SessionResearchView(api);
+const tradePerformance = new TradePerformanceView(api);
 let lastStreamEvent = null, lastEventRefresh = 0, lastTimingRender = 0;
 const live = new LiveQuotes(frame => {
   if (!latestChart || frame.symbol !== selectedSymbol || String(frame.interval) !== String(selectedInterval)) return;
@@ -214,8 +218,8 @@ async function refresh() {
     $('events').innerHTML = s.events.slice(0, 18).map(e => `<div class="event"><time>${time(e.ts)}</time><p>${escape(label(e.type))}<small class="muted"> ${escape(e.data.reason ?? e.data.action ?? e.data.symbol ?? '')}</small></p></div>`).join('');
     $('orders').innerHTML = s.orders.map(o => `<tr><td>${time(o.ts)}</td><td>${escape(o.symbol)}</td><td>${escape(o.kind)}</td><td>${number(o.qty)} / ${number(o.filledQty)}</td><td class="${['unknown', 'submitting'].includes(o.status) ? 'amber' : ''}">${escape(label(o.status))}</td><td class="code">${escape(o.id)}</td></tr>`).join('') || empty(6, 'No order intents recorded.');
     $('updated').textContent = `Updated ${time(Date.now())} · Broker sync ${s.lastReconcile ? time(s.lastReconcile) : 'pending'}`;
-    await Promise.all([refreshChart(), refreshPerformance(), refreshResearch(), strategyControls.refresh(s), optionsLab.refresh(), operations.refresh(s, selectedSymbol), jevLog.refresh(s)]);
-  } catch (e) { $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; }
+    await Promise.all([sessionResearch.refresh(), refreshChart(), refreshPerformance(), tradePerformance.refresh(), refreshResearch(), strategyControls.refresh(s), optionsLab.refresh(), operations.refresh(s, selectedSymbol), jevLog.refresh(s)]);
+  } catch (e) { tradePerformance.disconnect(); sessionResearch.disconnect(); $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; }
   finally { busy = false; }
 }
 $('login-form').addEventListener('submit', e => { e.preventDefault(); token = $('token').value.trim(); $('token').value = ''; void refresh(); });
@@ -227,7 +231,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
   catch (e) { $('action-message').textContent = e.message; }
   finally { button.disabled = false; }
 }));
-$('disconnect').addEventListener('click', () => { token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; lastPerformance = 0; riskDirty = false; chart.clear(); pnlChart.clear(); performanceSequence++; performanceScopeSet = false; operations.clear(); jevLog.clear(); strategyControls.clear(); optionsLab.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
+$('disconnect').addEventListener('click', () => { token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; lastPerformance = 0; riskDirty = false; chart.clear(); pnlChart.clear(); tradePerformance.clear(); sessionResearch.clear(); performanceSequence++; performanceScopeSet = false; operations.clear(); jevLog.clear(); strategyControls.clear(); optionsLab.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
 $('chart-symbol').addEventListener('change', () => { selectedSymbol = $('chart-symbol').value; live.stop(); latestChart = null; selectedEvent = null; $('trade-detail').innerHTML = '<p>Select a signal, order, or fill.</p>'; chart.clear(); void refreshChart(); });
 document.querySelectorAll('[data-interval]').forEach(b => b.addEventListener('click', () => { selectedInterval = b.dataset.interval.endsWith('s') ? b.dataset.interval : Number(b.dataset.interval); live.stop(); latestChart = null; chart.clear(); document.querySelectorAll('[data-interval]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); void refreshChart(); }));
 $('chart-signals').addEventListener('change', e => { chart.showSignals = e.target.checked; chart.draw(); });

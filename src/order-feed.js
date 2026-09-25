@@ -5,7 +5,7 @@ const EVENTS = new Set(['new', 'accepted', 'fill', 'partial_fill', 'canceled', '
 export function orderObservation(data) {
   if (!EVENTS.has(data?.event) || !data.order || typeof data.order.client_order_id !== 'string') return null;
   const o = data.order, id = o.client_order_id.slice(0, 128);
-  return { orderId: id, symbol: typeof o.symbol === 'string' && o.symbol ? canonical(o.symbol).slice(0, 40) : undefined,
+  return { orderId: id, symbol: typeof o.symbol === 'string' && o.symbol ? canonical(o.symbol,o.asset_class).slice(0, 40) : undefined,
     kind: 'broker notification', status: data.event, side: ['buy', 'sell'].includes(o.side) ? o.side : undefined,
     qty: Number.isFinite(Number(o.filled_qty)) ? Number(o.filled_qty) : null,
     price: Number.isFinite(Number(o.filled_avg_price)) ? Number(o.filled_avg_price) : null,

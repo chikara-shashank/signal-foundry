@@ -101,6 +101,7 @@ export class StrategyControlsView {
         open: money(strategy.openGrossPnl), positions: `${strategy.openPositions} open position${strategy.openPositions === 1 ? '' : 's'}`,
         state: strategy.exceptions?.length ? `${strategy.exceptions.length} execution exception(s) · P/L unresolved` : strategy.pendingCancellations ? `${strategy.pendingCancellations} entry cancellation pending` : strategy.unavailableReason ?? (strategy.enabled ? data.paused ? 'Enabled · entries paused' : !data.ready ? 'Enabled · entry gates blocked' : 'Watching for new setups' : strategy.openPositions ? 'Off · managing exits' : 'Off · no new entries') };
       const risk=strategy.riskPolicy, q=strategy.qualification;
+      if(risk.overnight)values.description+=` Shared carry cap ${(risk.overnight.capFraction*100).toFixed(1)}% of engine equity; each entry also limited to ${(risk.overnight.positionFraction*100).toFixed(1)}%.`;
       values.description += ` Current version ${q.experimentId.slice(0,12)} · ${q.liveEligible?'qualified':'paper experiment'}. ` + (risk.sizing==='fixed_notional' ? `${money(risk.notional)} notional / ${money(risk.nominalStopRisk)} nominal stop risk; reservation ${risk.reservation.reason}.` : `${money(risk.risk)} stop risk / ${money(risk.maxPosition)} position cap.`);
       for (const [key, value] of Object.entries(values)) f[key].textContent = value;
       f.net.className = strategy.realizedNetPnl == null || strategy.realizedNetPnl === 0 ? '' : strategy.realizedNetPnl > 0 ? 'positive' : 'negative';

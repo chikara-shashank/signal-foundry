@@ -11,7 +11,7 @@ export class CryptoContext {
     this.busy = true;
     try {
       const bars = new Map(e.cfg.crypto.map(s => [s, []])); let token = null;
-      for (let page = 0; page < 4; page++) {
+      for (let page = 0; page < 10; page++) {
         const query = new URLSearchParams({ symbols: e.cfg.crypto.join(','), timeframe: '5Min', start: new Date(end - 180 * 300000).toISOString(), end: new Date(end - 1).toISOString(), limit: '1000', sort: 'asc' });
         if (token) query.set('page_token', token);
         const r = await this.fetch(`https://data.alpaca.markets/v1beta3/crypto/${e.cfg.cryptoLocation}/bars?${query}`, {

@@ -151,12 +151,14 @@ export class OptionsLab {
     });
   }
   async poll() {
+    if (this.engine.schedule && !this.engine.schedule.state().equityTracking) return;
     if (this.running || this.unavailable() || Date.now() - this.lastPoll < P.pollMs || (!Object.values(this.state.enabled).some(Boolean) && !this.state.positions.length && !this.state.pending.length)) return;
     this.running = true; this.lastPoll = Date.now(); const revision = this.state.revision;
     try {
       const watched = [...this.state.positions, ...this.state.pending].flatMap(p => [p.long, p.short]);
       const frame = await this.adapter.capture(['SPY', 'QQQ'], watched), e = this.engine;
       if (e.stopped) return;
+      if (e.schedule && !e.schedule.state().equityTracking) return;
       await e.mutex.run(async () => {
         if (e.stopped) return;
         e.store.assertLease();
