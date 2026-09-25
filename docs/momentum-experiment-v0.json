@@ -1,0 +1,75 @@
+{
+  "id": "listed-smallcap-first-pullback-v0",
+  "designDate": "2026-09-24",
+  "status": "design_locked_pending_data_and_integration",
+  "claim": "Unvalidated long-only intraday continuation hypothesis inspired by public Warrior material; not a replication of Cameron's discretionary trading or returns.",
+  "decisionClock": "Original local receipt order, with exchange event time retained. Any field first received after a decision is unavailable at that decision.",
+  "scanner": {
+    "universe": "US exchange-listed common shares; historical listings and broker eligibility as known then. Exclude OTC, ADRs, funds, preferreds, warrants and rights in v0.",
+    "priceUSD": [1, 20],
+    "gainFromSplitConsistentPreviousClosePctMin": 10,
+    "floatSharesExclusiveMax": 10000000,
+    "floatMaxAgeDays": 90,
+    "relativeVolume": "Cumulative eligible share volume since 04:00 ET divided by mean full regular-session volume over 30 prior sessions. Require >=5. This explicit convention is our adaptation; it is not asserted to equal Warrior's proprietary scanner.",
+    "sameClockRelativeVolume": "Record for diagnostics only, never substitute into the primary filter or choose the better definition after evaluation.",
+    "catalyst": "Issuer or SEC material event, effective and first available within 24 hours before decision; retain source URL, publication and receipt timestamps. No LLM evaluation in the entry path. News taxonomy and adjudication must be locked before holdout.",
+    "ranking": "Top 3 among eligible names by contemporaneous percentage gain, then volume ratio, then symbol. Recompute once per second; retain the entire ranked universe and all rejection reasons.",
+    "unverifiedCorporateActionOrMissingRequiredMetadata": "reject_and_log"
+  },
+  "setup": {
+    "entryWindowET": ["09:35", "11:00"],
+    "bars": "One-minute regular-session bars, only after close and receipt. No reconstruction from later corrections at a historical decision.",
+    "impulse": "A completed green candle whose high strictly exceeds every preceding regular-session high. At least five completed regular-session bars must already exist.",
+    "pullback": "The next 1-3 completed bars remain at or below the impulse high, retrace at most 50% of its high-low range, and have mean volume below the impulse bar's volume. Their final close exceeds session VWAP from received eligible trades. Reset on a deeper retracement, a new impulse, or after the third bar expires without a trigger.",
+    "trigger": "First eligible received trade strictly above the completed pullback high while the symbol is still in the top 3; use only information available at that receipt time. After each pullback bar, monitor the following minute, up to the end of the minute following the third pullback bar. Do not use the unfinished trigger candle's eventual high, close or volume.",
+    "stop": "Pullback low minus one valid venue tick, rounded down to the venue tick.",
+    "entry": "Marketable buy limit at current ask plus one valid venue tick; cancel unfilled remainder. Model receipt-to-arrival delay and cancellation; never assume a passive fill because a bar touched the limit.",
+    "spreadGuard": "Spread <= min(0.03 USD, 20% of limit-minus-stop). Reject locked/crossed/stale/ineligible quotes, feed gaps, unknown halt state or nontradable symbols.",
+    "target": "Full exit when executable bid reaches actual fill price + 2 times (actual fill price minus stop). No scaling out in v0.",
+    "timeExitSeconds": 300,
+    "maxEntriesPerSymbolPerDay": 1,
+    "averagingDown": false,
+    "overnightIntent": false,
+    "haltedAtExit": "Retain the position and exposure, execute only after an eligible reopening, and carry unresolved exposure explicitly even across days. Never truncate loss to the stop."
+  },
+  "portfolio": {
+    "initialCapitalUSD": 10000,
+    "maxPositionNotionalUSD": 500,
+    "maxGrossExposureUSD": 3000,
+    "plannedStopRiskPerPositionUSD": 10,
+    "qty": "Whole shares: floor(min(500/limit, 10/(limit-stop), freeExposure/limit, availableBuyingPower/limit)); entry capped at 10% of displayed ask size in the replay proxy. Enforce limits across all simultaneous candidates, including pending and unresolved orders.",
+    "dailyEntryHaltLossUSD": 30,
+    "lossHaltDefinition": "Disable new entries after realized plus bid-marked unrealized session P/L reaches -30; pending exits remain active. This is an entry halt, not a guarantee losses cannot exceed 30.",
+    "leverage": 1,
+    "cashAccount": "Deduct entry cash and do not recycle sale proceeds before T+1 settlement. Limited-margin account may recycle only if broker confirms buying power; no borrowing assumed.",
+    "externalPositions": "Preserve all existing ownership exclusions; reserve their buying power and exposure if sharing an account."
+  },
+  "executionScenarios": {
+    "primaryDelayMs": 1000,
+    "stressDelayMs": 3500,
+    "entryTtlAfterArrivalMs": 1000,
+    "maxQuoteAgeMs": 250,
+    "primaryExtraSlipPerShareUSD": 0,
+    "stressExtraSlip": "One extra venue tick adversely on every fill, with delay 3500 ms; entry price must still respect its limit.",
+    "depthFraction": 0.1,
+    "caveat": "Quoted executable sides are necessary but not sufficient. This depth fraction is an explicit uncalibrated proxy, not queue or fill probability evidence."
+  },
+  "validation": {
+    "operationalPilot": "10 consecutive full exchange sessions after recorder integration; exercise logging, restart, order and position reconciliation. These dates are development data.",
+    "holdoutStart": "First full exchange session after pilot and operational signoff, no earlier than 2026-09-25. Record exact start, code hashes, data contracts, fee version, actual fixed cost budget and news taxonomy before observing outcomes.",
+    "fixedHorizonExchangeSessions": 120,
+    "minimumClosedTrades": 200,
+    "insufficientObservations": "Inconclusive; do not extend the horizon because P/L is unfavorable or promising.",
+    "feeChanges": "Use independently published fees effective on execution date. Record all exogenous updates; do not optimize fees. The bundled fee helper expires on 2026-09-24 and must be refreshed from broker documentation before future replay.",
+    "primaryMetric": "Dollar P/L of the complete capital-constrained portfolio, after executable-side fills, regulatory fees, all unresolved exposure resolved or conservatively provisioned, and actual recorded fixed operating costs. Include zero-trade days.",
+    "uncertainty": "Five-session block bootstrap across complete portfolio days, 5000 resamples, seed 239724. Require the primary mean net-dollar lower 95% bound above zero before proposing a separately authorized live calibration. No automatic deployment.",
+    "additionalGates": [
+      "Positive full-horizon net P/L under the 3500 ms plus extra-tick stress scenario.",
+      "No unexplained missing signals, discarded unresolved positions, or portfolio reconciliation differences.",
+      "Report drawdown, worst gap, daily loss-limit overshoot, fill/rejection rates, spread, slippage, turnover, per-symbol and monthly P/L and contribution of the best five days.",
+      "If rules, parameters or selection logic change after seeing holdout outcomes, retire this holdout and register a new experiment. Retain every prior trial, including earlier ORB, noise and anomaly tests."
+    ]
+  },
+  "implementedInThisKit": ["Point-in-time candidate filter", "Single-intent delayed bid/ask replay primitive", "Robinhood fee snapshot", "Prior ORB cost sensitivity"],
+  "requiredBeforeExperimentCanRun": ["Market-wide recorder with point-in-time listing, float, corporate action, news and broker eligibility data", "Small-cap eligible trades, quotes, sizes, halt feed and receipt timestamps", "Session bar/VWAP and pullback state machine", "Portfolio scheduler including pending orders, settlement and unresolved positions", "Calibrated broker capability and execution assessment", "Independent conformance review of integration against this design"]
+}

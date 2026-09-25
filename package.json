@@ -11,6 +11,9 @@
     "replay": "node scripts/replay.js",
     "backtest": "node --env-file-if-exists=.env scripts/backtest.js",
     "research:intraday": "node --env-file-if-exists=.env scripts/intraday-research.js",
+    "research:momentum": "node scripts/momentum-research.js",
+    "research:momentum:data": "node --env-file-if-exists=.env scripts/momentum-data.js",
+    "research:momentum:validation": "node scripts/momentum-validation.js",
     "doctor": "node --env-file-if-exists=.env scripts/doctor.js",
     "report": "node --env-file-if-exists=.env scripts/report.js"
   }

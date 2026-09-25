@@ -1,5 +1,7 @@
 # Signal Foundry
 
+The opt-in [small-cap momentum research lane](docs/MOMENTUM-RESEARCH.md) adds point-in-time screening, causal pullback replay, capital/settlement constraints and prospective validation gates. Run it through `research:momentum`; it is broker-free and is not enabled by `npm start`.
+
 A local-first, autonomous price-action and quant research system for US stocks/ETFs and BTC/ETH spot. Six strategy worker threads share one portfolio authority. Jev evaluates setup coherence, market context, and contextual quality. Every order has a durable journal and risk checks.
 
 **Start in demo, then Alpaca paper. The software includes live execution, but its strategy parameters have no established profitable edge.** It is a single-account research release, not a certified unattended trading product. See [verification](docs/VERIFICATION.md) for exactly what was exercised.
