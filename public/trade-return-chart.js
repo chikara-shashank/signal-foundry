@@ -1,3 +1,4 @@
+import { chartPalette } from './chart-palette.js';
 import { $ } from './dashboard-format.js';
 import { pct, cash, date, color } from './return-format.js';
 import { MINUTE, minuteTicks, ReturnViewport } from './return-timeline.js';
@@ -6,6 +7,7 @@ export class TradeReturnChart {
   constructor(onSelect) {
     this.canvas = $('trade-return-chart'); this.tooltip = $('trade-return-tooltip');
     this.trades = []; this.viewport = new ReturnViewport();
+    document.addEventListener('dashboard-design-change', () => this.draw());
     this.observer = new ResizeObserver(() => this.draw()); this.observer.observe(this.canvas.parentElement);
     this.canvas.addEventListener('pointermove', event => {
       const rect = this.canvas.getBoundingClientRect(); this.pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top }; this.draw();
@@ -21,11 +23,12 @@ export class TradeReturnChart {
   reset() { this.viewport.reset(); this.pointer = null; }
   update(data, trades, connected) { this.data = data; this.trades = trades; this.connected = connected; this.draw(); }
   draw() {
+    const colors = chartPalette();
     const width = this.canvas.parentElement.clientWidth, height = 370;
     if (!width) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 2), ctx = this.canvas.getContext('2d');
     this.canvas.width = width * ratio; this.canvas.height = height * ratio; ctx.scale(ratio, ratio);
-    ctx.fillStyle = '#0e151e'; ctx.fillRect(0, 0, width, height); ctx.font = '11px ui-monospace, Consolas, monospace';
+    ctx.fillStyle = colors.bg; ctx.fillRect(0, 0, width, height); ctx.font = '11px ui-monospace, Consolas, monospace';
     this.tooltip.hidden = true; this.hover = null;
     const trades = this.trades, plotted = [];
     const since = this.data?.since ?? 0, now = this.data?.now ?? Date.now();
@@ -39,7 +42,7 @@ export class TradeReturnChart {
     const marks = plotted.flatMap(t => [t.start, ...t.points, t.end].filter(Boolean));
     if (!marks.length) {
       for (const id of ['return-earlier', 'return-later', 'return-zoom-in', 'return-zoom-out', 'return-minute', 'return-fit']) $(id).disabled = true;
-      $('return-viewport').textContent = 'No timestamped returns'; ctx.fillStyle = '#a4b6c5'; ctx.textAlign = 'center'; ctx.fillText(trades.length ? 'No timestamped valuations in this window.' : 'No filled trades in this selection.', width / 2, 170); return; }
+      $('return-viewport').textContent = 'No timestamped returns'; ctx.fillStyle = colors.text; ctx.textAlign = 'center'; ctx.fillText(trades.length ? 'No timestamped valuations in this window.' : 'No filled trades in this selection.', width / 2, 170); return; }
     const left = 65, right = Math.max(130, width - (width > 600 ? 160 : 85)), top = 45, bottom = 312;
     let low = 0, high = 0, from = now, to = since;
     for (const p of marks) { low = Math.min(low, p.low ?? p.returnPct); high = Math.max(high, p.high ?? p.returnPct); from = Math.min(from, p.ts); to = Math.max(to, p.ts); }
@@ -54,16 +57,16 @@ export class TradeReturnChart {
     $('return-zoom-out').disabled = to - from >= this.viewport.bounds.to - this.viewport.bounds.from;
     $('return-minute').disabled = false; $('return-fit').disabled = false;
     const x = ts => left + (ts - from) / (to - from) * (right - left), y = v => bottom - (v - low) / (high - low) * (bottom - top);
-    ctx.textAlign = 'left'; ctx.fillStyle = '#b5c6d4'; ctx.fillText('RETURN %', left, 20);
+    ctx.textAlign = 'left'; ctx.fillStyle = colors.text; ctx.fillText('RETURN %', left, 20);
     for (let i = 0; i <= 4; i++) {
       const value = low + i / 4 * (high - low), yy = y(value);
-      ctx.strokeStyle = '#24303d'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke();
-      ctx.textAlign = 'right'; ctx.fillStyle = '#9fb1c1'; ctx.fillText(pct(value), left - 8, yy + 4);
+      ctx.strokeStyle = colors.grid; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(left, yy); ctx.lineTo(right, yy); ctx.stroke();
+      ctx.textAlign = 'right'; ctx.fillStyle = colors.text; ctx.fillText(pct(value), left - 8, yy + 4);
     }
-    ctx.strokeStyle = '#9caebb'; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(left, y(0)); ctx.lineTo(right, y(0)); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = '#b5c6d4'; ctx.textAlign = 'left'; ctx.fillText('0% entry reference', left + 5, y(0) - 8);
+    ctx.strokeStyle = colors.text; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(left, y(0)); ctx.lineTo(right, y(0)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = colors.text; ctx.textAlign = 'left'; ctx.fillText('0% entry reference', left + 5, y(0) - 8);
     for (const ts of minuteTicks(from, to, right - left)) {
-      ctx.textAlign = x(ts) < left + 45 ? 'left' : x(ts) > right - 45 ? 'right' : 'center'; ctx.fillStyle = '#9fb1c1';
+      ctx.textAlign = x(ts) < left + 45 ? 'left' : x(ts) > right - 45 ? 'right' : 'center'; ctx.fillStyle = colors.text;
       ctx.fillText(new Date(ts).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false, hour: '2-digit', minute: '2-digit' }), x(ts), 333);
       ctx.fillText(new Date(ts).toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' }), x(ts), 350);
     }
@@ -76,7 +79,7 @@ export class TradeReturnChart {
     };
     const marker = (trade, point) => {
       if (!inView(point)) return;
-      const xx = x(point.ts), yy = y(point.returnPct), c = point.type === 'entry' ? '#96baff' : color(point.returnPct);
+      const xx = x(point.ts), yy = y(point.returnPct), c = point.type === 'entry' ? colors.blue : color(point.returnPct);
       ctx.fillStyle = c; ctx.strokeStyle = c; ctx.lineWidth = 2; ctx.beginPath();
       if (point.type === 'entry') { ctx.moveTo(xx, yy - 6); ctx.lineTo(xx - 5, yy + 4); ctx.lineTo(xx + 5, yy + 4); ctx.closePath(); ctx.fill(); }
       else if (point.type === 'exit') { ctx.moveTo(xx, yy - 6); ctx.lineTo(xx - 6, yy); ctx.lineTo(xx, yy + 6); ctx.lineTo(xx + 6, yy); ctx.closePath(); ctx.fill(); }

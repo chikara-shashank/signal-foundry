@@ -1,4 +1,4 @@
-const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+import { escape as esc } from './dashboard-format.js';
 const label=x=>String(x??'unavailable').replaceAll('_',' ');
 const money=x=>Number.isFinite(x)?x.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}):'—';
 const pct=x=>Number.isFinite(x)?(x*100).toFixed(1)+'%':'—';

@@ -1,4 +1,4 @@
-const $ = id => document.getElementById(id);
+import { $ } from './dashboard-format.js';
 const label = s => String(s ?? '—').replaceAll('_', ' ');
 const stamp = ts => new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const json = value => JSON.stringify(value, null, 2);

@@ -6,7 +6,7 @@ import { evaluate } from './strategies.js';
 import { NoiseArea } from './noise-area.js';
 import { hash, nyDate, isCrypto, terminal, floorStep } from './util.js';
 import { RELEASE } from './release.js';
-import { buildReport } from '../scripts/research.js';
+import { buildReport } from './research-report.js';
 import { supportsAdditions } from './pyramiding.js';
 
 export class ReplayBroker extends SimBroker {

@@ -1,7 +1,8 @@
 /** Accessible, hash-addressable views. Tab changes never control the engine. */
 export class DashboardTabs {
-  constructor(onChange) {
+  constructor(onChange, { history: useHistory = true } = {}) {
     this.onChange = onChange;
+    this.useHistory = useHistory;
     this.buttons = [...document.querySelectorAll('[role="tab"][data-tab]')];
     this.panels = [...document.querySelectorAll('.dashboard-view[role="tabpanel"]')];
     this.active = null;
@@ -27,11 +28,11 @@ export class DashboardTabs {
   decode(value) { try { return decodeURIComponent(value); } catch { return ''; } }
   navigate(id) {
     const hash = `#${encodeURIComponent(id)}`;
-    if (location.hash !== hash) history.pushState(null, '', hash);
-    this.route();
+    if (this.useHistory && location.hash !== hash) history.pushState(null, '', hash);
+    this.route(true, id);
   }
-  route(notify = true) {
-    const id = this.decode(location.hash.slice(1)), anchor = document.getElementById(id);
+  route(notify = true, requestedId) {
+    const id = requestedId ?? this.decode(location.hash.slice(1)), anchor = document.getElementById(id);
     const target = anchor?.closest('.dashboard-view') ?? this.panels[0];
     const next = target.id.replace('view-', ''), changed = next !== this.active;
     this.active = next;

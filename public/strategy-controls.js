@@ -1,6 +1,5 @@
-const $ = id => document.getElementById(id);
+import { $, escape } from './dashboard-format.js';
 const money = n => n === null ? '—' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-const escape = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export class StrategyControlsView {
   constructor(api) {

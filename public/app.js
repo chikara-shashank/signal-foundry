@@ -1,3 +1,5 @@
+import { DashboardDesign } from './dashboard-design.js';
+import { PerformancePanels } from './performance-panels.js';
 import { DashboardControls } from './dashboard-controls.js';
 import { AccountPerformanceView } from './account-performance.js';
 import { ResearchResultsView } from './research-results.js';
@@ -19,6 +21,8 @@ async function api(path, body) {
   if (!r.ok) { const error = await r.json().catch(() => ({})); throw new Error(r.status === 401 ? 'Token rejected. Check your .env file.' : error.error ?? `Request failed (${r.status})`); }
   return r.json();
 }
+new DashboardDesign();
+const performancePanels = new PerformancePanels();
 const chart = new TradingChart($('price-chart'), $('chart-tooltip'), inspectEvent);
 const accountPerformance = new AccountPerformanceView(api);
 const researchResults = new ResearchResultsView(api);
@@ -31,10 +35,12 @@ const sessionResearch = new SessionResearchView(api);
 const tradePerformance = new TradePerformanceView(api);
 const controls = new DashboardControls(api, refresh, () => selectedSymbol, () => { accountPerformance.last = 0; });
 const tabs = new DashboardTabs(() => {
+  performancePanels.show(tabs.active);
   if (tabs.active !== 'live') live.stop();
   if (busy) refreshPending = true;
   void refresh();
 });
+performancePanels.show(tabs.active);
 let refreshPending = false;
 let lastStreamEvent = null, lastEventRefresh = 0, lastTimingRender = 0;
 const live = new LiveQuotes(frame => {
@@ -132,8 +138,8 @@ async function refresh() {
     await Promise.all([
       tabs.active === 'live' && refreshChart(),
       tabs.active === 'research' && sessionResearch.refresh(),
-      tabs.active === 'performance' && accountPerformance.refresh(),
-      tabs.active === 'performance' && tradePerformance.refresh(),
+      ['live', 'performance'].includes(tabs.active) && accountPerformance.refresh(),
+      ['live', 'performance'].includes(tabs.active) && tradePerformance.refresh(),
       tabs.active === 'performance' && researchResults.refresh(),
       tabs.active === 'strategies' && strategyControls.refresh(s),
       tabs.active === 'strategies' && optionsLab.refresh(),

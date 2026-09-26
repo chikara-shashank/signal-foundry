@@ -1,6 +1,6 @@
 {
   "name": "signal-foundry",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24.13.0 <25" },
@@ -8,6 +8,8 @@
     "start": "node --env-file-if-exists=.env src/main.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "check": "node scripts/check.js",
+    "audit": "node scripts/audit.js",
+    "designs": "node scripts/design-gallery.js",
     "replay": "node scripts/replay.js",
     "replay:engine": "node scripts/engine-replay.js",
     "replay:pyramiding": "node scripts/pyramiding-replay.js",

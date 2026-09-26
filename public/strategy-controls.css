@@ -1,2 +1,116 @@
-.strategy-controls{scroll-margin-top:20px}.strategy-controls .table-wrap{max-height:none}.strategy-controls table{min-width:1060px}.strategy-controls th{padding-top:12px}.strategy-controls td{vertical-align:middle;padding-top:18px;padding-bottom:18px}.strategy-controls .strategy-description{white-space:normal;min-width:230px;max-width:320px}.strategy-controls .strategy-description strong{font-size:13px;font-weight:500}.strategy-controls td small{font-size:11px}.strategy-availability{white-space:normal;min-width:160px;max-width:215px}.strategy-switch{position:relative;display:inline-flex;align-items:center;gap:9px;cursor:pointer;min-width:76px}.strategy-switch input{position:absolute;opacity:0;width:42px;height:26px;margin:0;cursor:pointer}.strategy-switch-track{display:inline-block;width:38px;height:22px;background:#394653;border:1px solid #627181;border-radius:15px;pointer-events:none}.strategy-switch-track::after{content:"";display:block;width:14px;height:14px;margin:3px;border-radius:50%;background:#e5edf4;transition:transform .12s ease}.strategy-switch input:checked + .strategy-switch-track{background:#285a43;border-color:var(--green)}.strategy-switch input:checked + .strategy-switch-track::after{transform:translateX(16px);background:var(--green)}.strategy-switch input:focus-visible + .strategy-switch-track{outline:2px solid #a9cfff;outline-offset:4px}.strategy-switch input:disabled + .strategy-switch-track{opacity:.45}.strategy-controls .strategy-help{margin-top:-5px;font-size:12px}.strategy-control-message{font-size:12px;color:var(--amber);min-height:18px;margin:10px 0}.strategy-controls strong{font-variant-numeric:tabular-nums}.strategy-controls .panel-title{margin-bottom:14px}
-.strategy-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:12px 0}.strategy-filters label{display:flex;flex-direction:column;gap:5px;color:var(--muted)}.strategy-filters select{max-width:300px}
+.strategy-controls {
+  scroll-margin-top:20px;
+}
+.strategy-controls .table-wrap {
+  max-height:none;
+}
+.strategy-controls table {
+  min-width:1060px;
+}
+.strategy-controls th {
+  padding-top:12px;
+}
+.strategy-controls td {
+  vertical-align:middle;
+  padding-top:18px;
+  padding-bottom:18px;
+}
+.strategy-controls .strategy-description {
+  white-space:normal;
+  min-width:230px;
+  max-width:320px;
+}
+.strategy-controls .strategy-description strong {
+  font-size:13px;
+  font-weight:500;
+}
+.strategy-controls td small {
+  font-size:11px;
+}
+.strategy-availability {
+  white-space:normal;
+  min-width:160px;
+  max-width:215px;
+}
+.strategy-switch {
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  cursor:pointer;
+  min-width:76px;
+}
+.strategy-switch input {
+  position:absolute;
+  opacity:0;
+  width:42px;
+  height:26px;
+  margin:0;
+  cursor:pointer;
+}
+.strategy-switch-track {
+  display:inline-block;
+  width:38px;
+  height:22px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:15px;
+  pointer-events:none;
+}
+.strategy-switch-track::after {
+  content:"";
+  display:block;
+  width:14px;
+  height:14px;
+  margin:3px;
+  border-radius:50%;
+  background:var(--accent);
+  transition:transform .12s ease;
+}
+.strategy-switch input:checked + .strategy-switch-track {
+  background:var(--surface-2);
+  border-color:var(--green);
+}
+.strategy-switch input:checked + .strategy-switch-track::after {
+  transform:translateX(16px);
+  background:var(--green);
+}
+.strategy-switch input:focus-visible + .strategy-switch-track {
+  outline:2px solid var(--line);
+  outline-offset:4px;
+}
+.strategy-switch input:disabled + .strategy-switch-track {
+  opacity:.45;
+}
+.strategy-controls .strategy-help {
+  margin-top:-5px;
+  font-size:12px;
+}
+.strategy-control-message {
+  font-size:12px;
+  color:var(--amber);
+  min-height:18px;
+  margin:10px 0;
+}
+.strategy-controls strong {
+  font-variant-numeric:tabular-nums;
+}
+.strategy-controls .panel-title {
+  margin-bottom:14px;
+}
+.strategy-filters {
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  align-items:end;
+  margin:12px 0;
+}
+.strategy-filters label {
+  display:flex;
+  flex-direction:column;
+  gap:5px;
+  color:var(--muted);
+}
+.strategy-filters select {
+  max-width:300px;
+}

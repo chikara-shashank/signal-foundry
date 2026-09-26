@@ -1,5 +1,4 @@
-const $ = id => document.getElementById(id);
-const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+import { $, escape as esc } from './dashboard-format.js';
 const label = v => String(v ?? '').replaceAll('_', ' ');
 const n = v => Number(v ?? 0).toLocaleString('en-US', { maximumFractionDigits: 4 });
 const usd = v => Number(v).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 4 });

@@ -6,21 +6,79 @@
   background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
-.dashboard-tabs { display: flex; gap: 8px; overflow-x: auto; padding: 2px; }
-.dashboard-tabs button { flex: 0 0 auto; min-width: 100px; background: transparent; color: var(--muted); border-color: transparent; font-size: 13px; }
-.dashboard-tabs button[aria-selected="true"] { background: #20352e; color: var(--green); border-color: #436c5b; }
-.dashboard-tabs button:focus-visible, .dashboard-view:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
-.dashboard-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; font-size: 12px; }
-.dashboard-summary p { margin: 0; color: var(--text); }
-.dashboard-summary a { color: var(--green); white-space: nowrap; }
-.dashboard-view { scroll-margin-top: 82px; min-width: 0; }
-.dashboard-view [id] { scroll-margin-top: 82px; }
-.view-heading { display: flex; align-items: baseline; gap: 18px; margin: 22px 0; }
-.view-heading p { margin: 0; font-size: 12px; }
-#view-live .data-health { margin-top: 0; }
-#view-operations .intro { padding-top: 0; }
-#view-operations .paper-test-panel h2 { margin-top: 0; }
+.dashboard-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px;
+}
+.dashboard-tabs button {
+  flex: 0 0 auto;
+  min-width: 100px;
+  background: transparent;
+  color: var(--muted);
+  border-color: transparent;
+  font-size: 13px;
+}
+.dashboard-tabs button[aria-selected="true"] {
+  background: var(--surface-2);
+  color: var(--green);
+  border-color: var(--line);
+}
+.dashboard-tabs button:focus-visible, .dashboard-view:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.dashboard-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 0;
+  font-size: 12px;
+}
+.dashboard-summary p {
+  margin: 0;
+  color: var(--text);
+}
+.dashboard-summary a {
+  color: var(--green);
+  white-space: nowrap;
+}
+.dashboard-view {
+  scroll-margin-top: 82px;
+  min-width: 0;
+}
+.dashboard-view [id] {
+  scroll-margin-top: 82px;
+}
+.view-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  margin: 22px 0;
+}
+.view-heading p {
+  margin: 0;
+  font-size: 12px;
+}
+#view-live .data-health {
+  margin-top: 0;
+}
+#view-operations .intro {
+  padding-top: 0;
+}
+#view-operations .paper-test-panel h2 {
+  margin-top: 0;
+}
 @media (max-width: 600px) {
-  .dashboard-summary, .view-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .dashboard-tabs button { min-width: auto; padding: 10px 12px; }
+  .dashboard-summary, .view-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .dashboard-tabs button {
+    min-width: auto;
+    padding: 10px 12px;
+  }
 }

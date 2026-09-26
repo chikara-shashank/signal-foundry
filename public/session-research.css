@@ -1,1 +1,65 @@
-.session-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:16px 0}.session-cards article{border:1px solid var(--line,#27313d);border-radius:8px;padding:16px;background:rgba(128,149,177,.035)}.session-cards h3{margin:0 0 12px}.session-cards strong{font-size:18px}.session-cards p{font-size:12px;line-height:1.7;color:var(--muted,#a2afc0)}.session-cards progress{width:100%;height:9px;accent-color:#68d6b2}.session-warning{color:#eaba75;font-size:13px}.session-research table{min-width:880px}.session-research td{max-width:400px;white-space:normal;vertical-align:top;line-height:1.6}.session-research td small{color:var(--muted,#a2afc0)}.session-research details{margin:18px 0}.session-coins{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;font-size:12px;padding:16px 0}.session-research a{color:#80b9ff}.session-research .negative{color:#f18d99}@media(max-width:900px){.session-cards{grid-template-columns:1fr}}
+.session-cards {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin:16px 0;
+}
+.session-cards article {
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:16px;
+  background:rgba(128,149,177,.035);
+}
+.session-cards h3 {
+  margin:0 0 12px;
+}
+.session-cards strong {
+  font-size:18px;
+}
+.session-cards p {
+  font-size:12px;
+  line-height:1.7;
+  color:var(--muted);
+}
+.session-cards progress {
+  width:100%;
+  height:9px;
+  accent-color:var(--green);
+}
+.session-warning {
+  color:var(--red);
+  font-size:13px;
+}
+.session-research table {
+  min-width:880px;
+}
+.session-research td {
+  max-width:400px;
+  white-space:normal;
+  vertical-align:top;
+  line-height:1.6;
+}
+.session-research td small {
+  color:var(--muted);
+}
+.session-research details {
+  margin:18px 0;
+}
+.session-coins {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:12px;
+  font-size:12px;
+  padding:16px 0;
+}
+.session-research a {
+  color:var(--blue);
+}
+.session-research .negative {
+  color:var(--red);
+}
+@media(max-width:900px) {
+  .session-cards {
+    grid-template-columns:1fr;
+  }
+}

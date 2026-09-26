@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-design="ledger" data-design-theme="light">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -12,16 +12,25 @@
     <link rel="stylesheet" href="/session-research.css">
     <script type="module" src="/app.js"></script>
     <link rel="stylesheet" href="/dashboard-tabs.css">
+    <link rel="stylesheet" href="/dashboard-designs.css">
   </head>
   <body>
     <div class="shell">
       <header>
         <div class="brand">
-          <span class="mark">SF</span>
+          <span class="mark">sf.</span>
           <div>
             <strong>Signal Foundry</strong>
-            <small>PRICE ACTION / AUTONOMOUS RESEARCH</small>
+            <small>TRADING &amp; RESEARCH</small>
           </div>
+        </div>
+        <div class="design-switcher" aria-label="Dashboard appearance">
+          <button id="design-previous" type="button" aria-label="Use Ledger light theme" aria-pressed="true">Light</button>
+          <button id="design-open" type="button" aria-haspopup="dialog">
+            <span class="design-label">Theme</span>
+            <span id="design-current">Ledger</span>
+          </button>
+          <button id="design-next" type="button" aria-label="Use Copper dark theme" aria-pressed="false">Dark</button>
         </div>
         <div class="statusline">
           <span id="mode" class="pill">CONNECT</span>
@@ -30,12 +39,8 @@
       </header>
       <section id="login" class="login">
         <div>
-          <span class="eyebrow">YOUR PRIVATE CONTROL ROOM</span>
-          <h1>
-            One portfolio.
-            <br>
-            Many perspectives.
-          </h1>
+          <span class="eyebrow">SIGNAL FOUNDRY</span>
+          <h1>Your trading desk.</h1>
           <p>Inspect market conditions, understand every decision, and keep execution within your limits.</p>
         </div>
         <form id="login-form">
@@ -66,8 +71,11 @@
         <div id="warnings" class="notice"></div>
         <section id="view-live" class="dashboard-view" role="tabpanel" aria-labelledby="tab-live" tabindex="0">
           <div class="view-heading">
-            <span class="eyebrow">LIVE</span>
-            <p>Markets, open positions &amp; execution</p>
+            <div>
+              <span class="eyebrow">MARKETS / POSITIONS / RETURNS</span>
+              <h1>Live overview</h1>
+            </div>
+            <p>One view of the managed book.</p>
           </div>
           <section class="data-health" aria-label="Market data connection">
             <div>
@@ -123,6 +131,136 @@
             </div>
             <p id="agent-book-note" class="muted"></p>
           </section>
+          <div id="live-performance" class="performance-workspace" aria-label="Live performance">
+            <section id="trade-return-panel" class="panel trade-return-panel" aria-labelledby="trade-return-title">
+              <div class="panel-title">
+                <div>
+                  <span class="eyebrow">EVERY POSITION, FROM ENTRY TO EXIT</span>
+                  <h2 id="trade-return-title">Trade returns over time</h2>
+                </div>
+                <span id="trade-return-health" class="pill" role="status">CONNECTING</span>
+              </div>
+              <div class="return-controls">
+                <label for="trade-return-days">
+                  Time window
+                  <select id="trade-return-days">
+                    <option value="1">Last 24 hours</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                  </select>
+                </label>
+                <label for="trade-return-interval">
+                  Resolution
+                  <select id="trade-return-interval">
+                    <option value="1">1 minute</option>
+                    <option value="5">5 minutes</option>
+                    <option value="15">15 minutes</option>
+                  </select>
+                </label>
+                <label for="trade-return-symbol">
+                  Ticker
+                  <select id="trade-return-symbol">
+                    <option value="">All tickers</option>
+                  </select>
+                </label>
+                <label for="trade-return-status">
+                  Position status
+                  <select id="trade-return-status">
+                    <option value="all">All trades</option>
+                    <option value="active">Active / settling</option>
+                    <option value="closed">Closed trades</option>
+                  </select>
+                </label>
+                <button id="trade-return-reset" hidden>Show all matching trades</button>
+              </div>
+              <p id="trade-return-counts" class="return-counts">Waiting for the fill journal.</p>
+              <div class="return-legend" aria-label="Chart legend">
+                <span class="return-entry">▲ Entry at 0% reference</span>
+                <span>◆ Closed exit</span>
+                <span class="return-active">◉ Active · latest bid</span>
+                <span>◎ Last observation · stale</span>
+                <span class="positive">Green = positive</span>
+                <span class="negative">Red = negative</span>
+                <span>│ Observed interval high / low</span>
+                <span>··· Endpoints only</span>
+              </div>
+              <div class="return-navigation" role="group" aria-label="Trade return chart navigation">
+                <button id="return-earlier" aria-label="Earlier returns">← Earlier</button>
+                <button id="return-later" aria-label="Later returns">Later →</button>
+                <button id="return-zoom-in" aria-label="Zoom in on returns">＋ Zoom in</button>
+                <button id="return-zoom-out" aria-label="Zoom out on returns">− Zoom out</button>
+                <button id="return-minute">1-minute view</button>
+                <button id="return-fit">Fit trades</button>
+                <span id="return-viewport" role="status"></span>
+              </div>
+              <div class="return-surface">
+                <canvas id="trade-return-chart" role="img" aria-label="Time on the horizontal axis and estimated net return percentage on the vertical axis, with entries, exits and open positions. Exact values are in the table below." aria-describedby="trade-return-counts trade-return-detail"></canvas>
+                <div id="trade-return-tooltip" class="chart-tooltip" hidden></div>
+              </div>
+              <p id="trade-return-detail" class="chart-note return-detail">Select a trade below to focus its path.</p>
+              <div class="return-table" tabindex="0" role="region" aria-label="Trade returns table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Ticker / strategy</th>
+                      <th>Position</th>
+                      <th>Entry · ET</th>
+                      <th>Exit / valuation · ET</th>
+                      <th>Return / P&amp;L</th>
+                      <th>Capital deployed</th>
+                    </tr>
+                  </thead>
+                  <tbody id="trade-return-rows">
+                    <tr>
+                      <td colspan="6" class="empty">Waiting for trades.</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <details class="panel-methodology">
+                <summary>Calculation &amp; data coverage</summary>
+                <p id="trade-return-note" class="chart-note"></p>
+              </details>
+            </section>
+            <section class="panel performance-panel" id="account-performance-panel">
+              <div class="panel-title">
+                <div>
+                  <span id="performance-scope-label" class="eyebrow">ACCOUNT PERFORMANCE</span>
+                  <h2>Profit &amp; loss over time</h2>
+                </div>
+                <div class="performance-controls">
+                  <label for="performance-scope">P/L scope</label>
+                  <select id="performance-scope">
+                    <option value="account">Entire account</option>
+                    <option value="agent">Agents only</option>
+                  </select>
+                  <span id="performance-status" class="pill">CONNECTING</span>
+                </div>
+              </div>
+              <div class="performance-totals">
+                <div>
+                  <span id="performance-daily-label" class="positive">● Daily equity change</span>
+                  <strong id="performance-daily">—</strong>
+                </div>
+                <div>
+                  <span id="performance-open-label" class="chart-blue">● Open P/L · all holdings</span>
+                  <strong id="performance-open">—</strong>
+                </div>
+                <div>
+                  <span id="performance-limit-label">Daily loss ceiling</span>
+                  <strong id="performance-limit">—</strong>
+                </div>
+              </div>
+              <div class="pnl-surface">
+                <canvas id="pnl-chart" role="img" aria-label="Daily account equity change and unrealized profit and loss over time"></canvas>
+                <div id="pnl-tooltip" class="chart-tooltip" hidden></div>
+              </div>
+              <details class="panel-methodology">
+                <summary>Calculation &amp; data coverage</summary>
+                <p id="performance-note" class="chart-note"></p>
+              </details>
+            </section>
+          </div>
           <section class="panel" id="open-positions-panel">
             <div class="panel-title">
               <h2>Open positions</h2>
@@ -144,7 +282,7 @@
               </table>
             </div>
           </section>
-          <section class="trade-workspace" aria-label="Trading chart and execution tape">
+          <section class="trade-workspace" aria-label="Trading chart and execution tape" id="market-workspace">
             <article class="panel chart-panel">
               <div class="chart-heading">
                 <div class="chart-instrument">
@@ -231,7 +369,7 @@
               </div>
             </aside>
           </section>
-          <section class="panel latency-panel">
+          <section class="panel latency-panel" id="latency-panel">
             <div class="panel-title">
               <h2>Measured timing</h2>
               <span class="muted">Median / p95 · milliseconds</span>
@@ -488,128 +626,7 @@
             <span class="eyebrow">PERFORMANCE</span>
             <p>Trade returns &amp; account history</p>
           </div>
-          <section id="trade-return-panel" class="panel trade-return-panel" aria-labelledby="trade-return-title">
-            <div class="panel-title">
-              <div>
-                <span class="eyebrow">EVERY POSITION, FROM ENTRY TO EXIT</span>
-                <h2 id="trade-return-title">Trade returns over time</h2>
-              </div>
-              <span id="trade-return-health" class="pill" role="status">CONNECTING</span>
-            </div>
-            <div class="return-controls">
-              <label for="trade-return-days">
-                Time window
-                <select id="trade-return-days">
-                  <option value="1">Last 24 hours</option>
-                  <option value="7">Last 7 days</option>
-                  <option value="30">Last 30 days</option>
-                </select>
-              </label>
-              <label for="trade-return-interval">
-                Resolution
-                <select id="trade-return-interval">
-                  <option value="1">1 minute</option>
-                  <option value="5">5 minutes</option>
-                  <option value="15">15 minutes</option>
-                </select>
-              </label>
-              <label for="trade-return-symbol">
-                Ticker
-                <select id="trade-return-symbol">
-                  <option value="">All tickers</option>
-                </select>
-              </label>
-              <label for="trade-return-status">
-                Position status
-                <select id="trade-return-status">
-                  <option value="all">All trades</option>
-                  <option value="active">Active / settling</option>
-                  <option value="closed">Closed trades</option>
-                </select>
-              </label>
-              <button id="trade-return-reset" hidden>Show all matching trades</button>
-            </div>
-            <p id="trade-return-counts" class="return-counts">Waiting for the fill journal.</p>
-            <div class="return-legend" aria-label="Chart legend">
-              <span class="return-entry">▲ Entry at 0% reference</span>
-              <span>◆ Closed exit</span>
-              <span class="return-active">◉ Active · latest bid</span>
-              <span>◎ Last observation · stale</span>
-              <span class="positive">Green = positive</span>
-              <span class="negative">Red = negative</span>
-              <span>│ Observed interval high / low</span>
-              <span>··· Endpoints only</span>
-            </div>
-            <div class="return-navigation" role="group" aria-label="Trade return chart navigation">
-              <button id="return-earlier" aria-label="Earlier returns">← Earlier</button>
-              <button id="return-later" aria-label="Later returns">Later →</button>
-              <button id="return-zoom-in" aria-label="Zoom in on returns">＋ Zoom in</button>
-              <button id="return-zoom-out" aria-label="Zoom out on returns">− Zoom out</button>
-              <button id="return-minute">1-minute view</button>
-              <button id="return-fit">Fit trades</button>
-              <span id="return-viewport" role="status"></span>
-            </div>
-            <div class="return-surface">
-              <canvas id="trade-return-chart" role="img" aria-label="Time on the horizontal axis and estimated net return percentage on the vertical axis, with entries, exits and open positions. Exact values are in the table below." aria-describedby="trade-return-counts trade-return-detail"></canvas>
-              <div id="trade-return-tooltip" class="chart-tooltip" hidden></div>
-            </div>
-            <p id="trade-return-detail" class="chart-note return-detail">Select a trade below to focus its path.</p>
-            <div class="return-table" tabindex="0" role="region" aria-label="Trade returns table">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Ticker / strategy</th>
-                    <th>Position</th>
-                    <th>Entry · ET</th>
-                    <th>Exit / valuation · ET</th>
-                    <th>Return / P&amp;L</th>
-                    <th>Capital deployed</th>
-                  </tr>
-                </thead>
-                <tbody id="trade-return-rows">
-                  <tr>
-                    <td colspan="6" class="empty">Waiting for trades.</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <p id="trade-return-note" class="chart-note"></p>
-          </section>
-          <section class="panel performance-panel">
-            <div class="panel-title">
-              <div>
-                <span id="performance-scope-label" class="eyebrow">ACCOUNT PERFORMANCE</span>
-                <h2>Profit &amp; loss over time</h2>
-              </div>
-              <div class="performance-controls">
-                <label for="performance-scope">P/L scope</label>
-                <select id="performance-scope">
-                  <option value="account">Entire account</option>
-                  <option value="agent">Agents only</option>
-                </select>
-                <span id="performance-status" class="pill">CONNECTING</span>
-              </div>
-            </div>
-            <div class="performance-totals">
-              <div>
-                <span id="performance-daily-label" class="positive">● Daily equity change</span>
-                <strong id="performance-daily">—</strong>
-              </div>
-              <div>
-                <span id="performance-open-label" class="chart-blue">● Open P/L · all holdings</span>
-                <strong id="performance-open">—</strong>
-              </div>
-              <div>
-                <span id="performance-limit-label">Daily loss ceiling</span>
-                <strong id="performance-limit">—</strong>
-              </div>
-            </div>
-            <div class="pnl-surface">
-              <canvas id="pnl-chart" role="img" aria-label="Daily account equity change and unrealized profit and loss over time"></canvas>
-              <div id="pnl-tooltip" class="chart-tooltip" hidden></div>
-            </div>
-            <p id="performance-note" class="chart-note"></p>
-          </section>
+          <div id="history-performance" class="performance-workspace" aria-label="Performance history"></div>
           <section id="research-panel" class="panel">
             <div class="panel-title">
               <div>
@@ -801,11 +818,22 @@
           </section>
         </section>
         <footer>
-          <span>Signal Foundry / v1.15.0</span>
+          <span>Signal Foundry / v1.16.0</span>
           <span id="updated">—</span>
           <button id="disconnect">Disconnect dashboard</button>
         </footer>
       </main>
     </div>
+    <dialog id="design-dialog" aria-labelledby="design-title">
+      <form method="dialog" class="design-dialog-heading">
+        <div>
+          <span class="eyebrow">SIGNAL FOUNDRY / APPEARANCE</span>
+          <h2 id="design-title">Light or dark.</h2>
+          <p id="design-description">Ledger in the light. Copper after dark. Choose the theme you prefer.</p>
+        </div>
+        <button aria-label="Close design chooser">Close ×</button>
+      </form>
+      <div id="design-choices" class="design-choices"></div>
+    </dialog>
   </body>
 </html>

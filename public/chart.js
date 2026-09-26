@@ -1,4 +1,4 @@
-const colors = { grid: '#20303b', text: '#8496a8', up: '#6ce0b5', down: '#f08298', amber: '#ecc37c', blue: '#84b8fa', bg: '#0e151e' };
+import { chartPalette } from './chart-palette.js';
 const price = n => Number(n).toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 5 : 2 });
 const clock = (ts, seconds = false) => new Date(ts).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', ...(seconds ? { second: '2-digit' } : {}), hour12: false });
 
@@ -7,6 +7,7 @@ export class TradingChart {
   constructor(canvas, tooltip, onSelect) {
     Object.assign(this, { canvas, tooltip, onSelect });
     this.count = 90; this.offset = 0; this.follow = true; this.showSignals = true; this.showAverages = true; this.hover = null;
+    document.addEventListener('dashboard-design-change', () => this.draw());
     this.observer = new ResizeObserver(() => this.draw()); this.observer.observe(canvas.parentElement);
     canvas.addEventListener('pointermove', e => { const r = canvas.getBoundingClientRect(); this.hover = { x: e.clientX - r.left, y: e.clientY - r.top }; this.draw(); });
     canvas.addEventListener('pointerleave', () => { this.hover = null; this.tooltip.hidden = true; this.draw(); });
@@ -19,6 +20,7 @@ export class TradingChart {
   reset() { this.follow = true; this.offset = 0; this.draw(); }
   clear(message = 'Connecting to chart data…') { this.data = null; this.emptyMessage = message; this.draw(); }
   draw() {
+    const colors = chartPalette();
     const { canvas, data } = this, width = canvas.parentElement.clientWidth, height = 430;
     if (!width) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -91,7 +93,7 @@ export class TradingChart {
       if (index < 0) { if (m.ts >= maxTime) index = bars.length; else continue; }
       const xx = x(index), yy = y(m.price); if (yy < top || yy > bottom) continue;
       const fill = m.type === 'fill', buy = m.side === 'buy';
-      ctx.fillStyle = fill ? buy ? colors.up : colors.down : m.status === 'approved' ? colors.blue : '#8e82af';
+      ctx.fillStyle = fill ? buy ? colors.up : colors.down : m.status === 'approved' ? colors.blue : colors.purple;
       ctx.strokeStyle = colors.bg; ctx.lineWidth = 1.5; ctx.beginPath();
       if (fill) { const sign = buy ? 1 : -1; ctx.moveTo(xx, yy - sign * 7); ctx.lineTo(xx - 5, yy + sign * 4); ctx.lineTo(xx + 5, yy + sign * 4); ctx.closePath(); } else ctx.arc(xx, yy, 3.3, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
@@ -99,13 +101,14 @@ export class TradingChart {
     }
     if (this.hover && this.hover.x < right && this.hover.y < volumeBottom) {
       const index = Math.max(0, Math.min(bars.length - 1, Math.round((this.hover.x - left) / step - .6))), b = bars[index], xx = x(index);
-      ctx.setLineDash([3, 3]); ctx.strokeStyle = '#6d7d8c'; ctx.beginPath(); ctx.moveTo(xx, top); ctx.lineTo(xx, volumeBottom); ctx.moveTo(left, this.hover.y); ctx.lineTo(right, this.hover.y); ctx.stroke(); ctx.setLineDash([]);
+      ctx.setLineDash([3, 3]); ctx.strokeStyle = colors.text; ctx.beginPath(); ctx.moveTo(xx, top); ctx.lineTo(xx, volumeBottom); ctx.moveTo(left, this.hover.y); ctx.lineTo(right, this.hover.y); ctx.stroke(); ctx.setLineDash([]);
       this.tooltip.hidden = false;
       this.tooltip.textContent = this.closestMarker ? `${this.closestMarker.type.toUpperCase()} · ${this.closestMarker.side ?? this.closestMarker.status} · ${price(this.closestMarker.price)} · click for details` :
         `${new Date(b.ts).toLocaleString()} | O ${price(b.open)} H ${price(b.high)} L ${price(b.low)} C ${price(b.close)} | V ${Number(b.volume).toLocaleString('en-US', { maximumFractionDigits: 8 })}${b.partial ? ' | forming / incomplete aggregate' : ''}`;
     } else this.tooltip.hidden = true;
   }
   drawQuotes(ctx, width) {
+    const colors = chartPalette();
     const data = this.data, points = data.quoteSeries, left = 18, right = width - 85, top = 50, bottom = 350;
     const values = points.flatMap(p => [p.bid, p.ask]), lo = Math.min(...values), hi = Math.max(...values), pad = Math.max((hi - lo) * .15, hi * .0001);
     const t0 = points[0].ts, t1 = Math.max(t0 + 30000, points.at(-1).ts);
@@ -133,6 +136,7 @@ const money = n => Number(n).toLocaleString('en-US', { style: 'currency', curren
 export class PnlChart {
   constructor(canvas, tooltip) {
     Object.assign(this, { canvas, tooltip });
+    document.addEventListener('dashboard-design-change', () => this.draw());
     this.observer = new ResizeObserver(() => this.draw()); this.observer.observe(canvas.parentElement);
     canvas.addEventListener('pointermove', e => { this.pointer = e.clientX - canvas.getBoundingClientRect().left; this.draw(); });
     canvas.addEventListener('pointerleave', () => { this.pointer = null; tooltip.hidden = true; this.draw(); });
@@ -140,6 +144,7 @@ export class PnlChart {
   update(data) { this.data = data; this.draw(); }
   clear() { this.data = null; this.draw(); }
   draw() {
+    const colors = chartPalette();
     const width = this.canvas.parentElement.clientWidth, height = 245;
     if (!width) return;
     const ratio = Math.min(window.devicePixelRatio || 1, 2);

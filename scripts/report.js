@@ -2,7 +2,7 @@ import { writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { config } from '../src/config.js';
 import { Store } from '../src/store.js';
-import { buildReport } from './research.js';
+import { buildReport } from '../src/research-report.js';
 const cfg = config(), path = join(cfg.dataDir, `${cfg.mode}.sqlite`);
 if (!existsSync(path)) throw new Error('No journal exists for the selected mode');
 const store = new Store(path), out = process.argv[2] ?? 'research-report.json';

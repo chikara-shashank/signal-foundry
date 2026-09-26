@@ -7,7 +7,7 @@ import { AlpacaBroker } from '../src/broker.js';
 import { parseMessage } from '../src/feeds.js';
 import { Microstructure } from '../src/microstructure.js';
 import { tradeScorecard, SignalOutcomes } from '../src/research.js';
-import { buildReport } from '../scripts/research.js';
+import { buildReport } from '../src/research-report.js';
 import { quantityTolerance } from '../src/portfolio.js';
 import { sizeEntry } from '../src/risk.js';
 import { createDashboard } from '../src/server.js';

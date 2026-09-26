@@ -1,4 +1,4 @@
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+import { escape as esc } from './dashboard-format.js';
 const n=x=>Number(x??0).toLocaleString();
 export class DiscoveryView {
   constructor() {

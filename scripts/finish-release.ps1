@@ -13,12 +13,14 @@ if ($LASTEXITCODE -ne 0) { throw 'main has diverged. Resolve its changes before 
 if ($LASTEXITCODE -ne 0) { throw 'JavaScript syntax validation failed.' }
 & node --test --test-concurrency=1 test/*.test.js
 if ($LASTEXITCODE -ne 0) { throw 'Tests failed; nothing has been committed or deployed.' }
+& node scripts/audit.js
+if ($LASTEXITCODE -ne 0) { throw 'Repository audit failed; nothing has been committed or deployed.' }
 # Explicit source paths exclude credentials, runtime journals and generated backups.
 Git-Checked add .dockerignore .gitignore .env.example Dockerfile README.md compose.yaml package.json public scripts src test docs
 & git diff --cached --quiet
 $stagedExit = $LASTEXITCODE
 if ($stagedExit -eq 1) {
-  Git-Checked commit -m 'Organize dashboard tabs and add minute-resolution trade returns'
+  Git-Checked commit -m 'Adopt Ledger light and Copper dark themes with shared live performance'
 } elseif ($stagedExit -ne 0) { throw 'Cannot inspect staged changes.' }
 if ($branch -ne 'main') {
   Git-Checked switch main

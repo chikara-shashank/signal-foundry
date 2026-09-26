@@ -13,8 +13,9 @@ const scripts = [
   'discovery', 'session-research', 'trade-performance', 'dashboard-format',
   'dashboard-tabs', 'dashboard-controls', 'dashboard-status', 'account-performance', 'research-results',
   'return-format', 'return-timeline', 'trade-return-chart',
+  'design-catalog', 'dashboard-design', 'performance-panels', 'chart-palette',
 ];
-const styles = ['style', 'chart', 'operations', 'strategy-controls', 'trade-performance', 'session-research', 'dashboard-tabs'];
+const styles = ['style', 'chart', 'operations', 'strategy-controls', 'trade-performance', 'session-research', 'dashboard-tabs', 'dashboard-designs'];
 const files = new Map([
   ['/', ['index.html', 'text/html']],
   ...scripts.map(name => [`/${name}.js`, [`${name}.js`, 'text/javascript']]),

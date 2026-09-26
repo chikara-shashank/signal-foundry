@@ -1,5 +1,5 @@
-import { nyDate } from '../src/util.js';
-import { tradeScorecard } from '../src/research.js';
+import { nyDate } from './util.js';
+import { tradeScorecard } from './research.js';
 
 const latencySummary = values => {
   const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);

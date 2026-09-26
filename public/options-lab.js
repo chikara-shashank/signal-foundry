@@ -1,4 +1,4 @@
-const $ = id => document.getElementById(id);
+import { $ } from './dashboard-format.js';
 const money = n => n === null ? 'Unavailable' : n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 
 export class OptionsLabView {

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { OPTIONS_POLICY as P, OPTIONS_FINGERPRINT, OPTIONS_STRATEGIES, optionContext, scanOptions, spreadEconomics, contractProblem, quoteProblem } from '../src/options-strategies.js';
+import { OPTIONS_POLICY as P, OPTIONS_STRATEGIES, optionContext, scanOptions, spreadEconomics, contractProblem, quoteProblem } from '../src/options-strategies.js';
 import { OptionsData, normalizeOption, normalizeOptionQuote } from '../src/options-data.js';
-import { OPTIONS_CODE_HASH, freshOptionsState, advanceOptions, optionsSummary, OptionsLab, replayOptions, replayOptionsStress, optionsRecord } from '../src/options-lab.js';
+import { freshOptionsState, advanceOptions, optionsSummary, OptionsLab, replayOptions, replayOptionsStress, optionsRecord } from '../src/options-lab.js';
 import { nyTimestamp } from '../src/util.js';
 import { fixture } from './helpers.js';
 import { createDashboard } from '../src/server.js';
@@ -190,5 +190,5 @@ test('code drift disables only the options lab and preserves the prior ledger', 
   const lab = new OptionsLab(f.engine, null);
   assert.match(lab.unavailable(), /experiment changed/); assert.equal(lab.snapshot().strategies[0].netPnl, null);
   await assert.rejects(() => lab.update({ strategy: 'put_credit', enabled: false, expectedRevision: 0 }), { status: 409 });
-  assert.equal(f.store.get('optionsLab').codeHash, 'old-implementation'); assert.equal(f.engine.status().version, '1.15.0');
+  assert.equal(f.store.get('optionsLab').codeHash, 'old-implementation'); assert.equal(f.engine.status().version, '1.16.0');
 });

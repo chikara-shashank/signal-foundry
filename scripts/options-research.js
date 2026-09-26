@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync, appendFileSync, readFileSync, existsSync, rea
 import { gunzipSync } from 'node:zlib';
 import { resolve, join } from 'node:path';
 import { OptionsData } from '../src/options-data.js';
-import { OPTIONS_FINGERPRINT, OPTIONS_STRATEGIES, scanOptions } from '../src/options-strategies.js';
+import { OPTIONS_STRATEGIES, scanOptions } from '../src/options-strategies.js';
 import { freshOptionsState, advanceOptions, optionsSummary, replayOptions, replayOptionsStress, optionsRecord } from '../src/options-lab.js';
 
 const args = process.argv.slice(2), command = args.shift();

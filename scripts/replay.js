@@ -3,8 +3,8 @@ import { config } from '../src/config.js';
 import { Store } from '../src/store.js';
 import { Engine } from '../src/engine.js';
 import { SimBroker } from '../src/broker.js';
-import { STRATEGIES, evaluate } from '../src/strategies.js';
-import { buildReport } from './research.js';
+import { evaluate } from '../src/strategies.js';
+import { buildReport } from '../src/research-report.js';
 
 const args = process.argv.slice(2), input = args[0], output = args[1] ?? 'replay-report.json', modelFile = args[2];
 if (!input) { console.error('Usage: node scripts/replay.js events.jsonl report.json [recorded-candidates.json]'); process.exit(1); }
