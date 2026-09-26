@@ -91,15 +91,15 @@ export function createDashboard(engine, cfg) {
         const s = engine.status(); res.writeHead(200, { 'Content-Type': 'text/plain' });
         return res.end(`signal_foundry_ready ${Number(s.ready)}\nsignal_foundry_paused ${Number(s.paused)}\nsignal_foundry_equity_usd ${s.account?.equity ?? 0}\nsignal_foundry_daily_pnl_usd ${s.dailyPnl}\nsignal_foundry_model_spend_usd ${s.jev.spent}\nsignal_foundry_open_positions ${s.positions.length}\n`);
       }
-      if (['/api/control', '/api/paper-test', '/api/risk-settings', '/api/strategy-settings', '/api/options-settings'].includes(path) && req.method === 'POST') {
+      if (['/api/control', '/api/paper-test', '/api/risk-settings', '/api/strategy-settings', '/api/options-settings', '/api/options-experiment'].includes(path) && req.method === 'POST') {
         if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) return json(403, { error: 'Origin rejected' });
         if (!String(req.headers['content-type']).startsWith('application/json')) return json(415, { error: 'JSON required' });
         let body = '';
         for await (const chunk of req) { body += chunk; if (body.length > 1024) return json(413, { error: 'Request too large' }); }
         const request = JSON.parse(body);
-        if (path === '/api/options-settings') {
+        if (path === '/api/options-settings' || path === '/api/options-experiment') {
           if (!engine.optionsLab) return json(503, { error: 'Options research is not initialized' });
-          try { return json(200, await engine.optionsLab.update(request)); }
+          try { return json(200, await (path === '/api/options-experiment' ? engine.optionsLab.restartExperiment(request) : engine.optionsLab.update(request))); }
           catch (error) { if ([400, 409].includes(error.status)) return json(error.status, { error: error.message }); throw error; }
         }
         if (path === '/api/strategy-settings') {

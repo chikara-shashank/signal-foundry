@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-09-26T00:32:07.971Z",
+  "checks": [
+    {
+      "name": "opra_latest",
+      "status": 200,
+      "quoteCount": 1
+    },
+    {
+      "name": "historical_option_quotes",
+      "status": 404
+    },
+    {
+      "name": "historical_option_trades",
+      "status": 200,
+      "tradeCount": 0
+    },
+    {
+      "name": "equity_cache_spot_check",
+      "status": 200,
+      "matchesCache": true
+    }
+  ],
+  "liveEligible": false,
+  "optionsVerdict": "BLOCKED_MISSING_HISTORICAL_EXECUTABLE_QUOTES_AND_POINT_IN_TIME_CHAIN",
+  "note": "Historical trades do not supply two-leg bid/ask, contemporaneous Greeks, OI or assignment outcomes. This probe does not validate a strategy."
+}

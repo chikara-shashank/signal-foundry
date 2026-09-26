@@ -12,7 +12,7 @@ export class MarketSchedule {
     if (this.busy || e.stopped || now < this.retryAt || (now - this.cache.fetchedAt < 6 * 3600000 && this.cache.through > date)) return;
     this.busy = true; this.retryAt = now + 300000;
     try {
-      const through = nyDate(now + 21 * DAY), rows = await this.venue.calendar(nyDate(now - 10 * DAY), through);
+      const through = nyDate(now + 50 * DAY), rows = await this.venue.calendar(nyDate(now - 10 * DAY), through);
       if (!Array.isArray(rows) || !rows.length || rows.some(r => !/^\d{4}-\d\d-\d\d$/.test(r.date) || !Number.isFinite(r.open) || !Number.isFinite(r.close) || r.open >= r.close || nyDate(r.open) !== r.date || nyDate(r.close) !== r.date)) throw new Error('invalid_calendar');
       if (e.stopped) return;
       this.cache = { rows: [...rows].sort((a,b) => a.open - b.open), fetchedAt: now, through };

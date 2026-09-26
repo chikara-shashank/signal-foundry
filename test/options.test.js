@@ -6,21 +6,22 @@ import { freshOptionsState, advanceOptions, optionsSummary, OptionsLab, replayOp
 import { nyTimestamp } from '../src/util.js';
 import { fixture } from './helpers.js';
 import { createDashboard } from '../src/server.js';
+import { RELEASE } from '../src/release.js';
 
 const start = Date.parse('2026-09-28T15:00:00Z');
 function frameFor(strategy = 'put_credit', now = start) {
-  const credit = strategy === 'put_credit', call = strategy === 'call_debit', expiry = credit ? '2026-10-26' : '2026-10-12';
+  const credit = strategy.endsWith('_credit'), call = strategy.startsWith('call_'), expiry = credit ? '2026-10-26' : '2026-10-12';
   const make = strike => ({ symbol: `SPY${expiry.replaceAll('-', '').slice(2)}${call ? 'C' : 'P'}${String(strike * 1000).padStart(8, '0')}`,
     underlying: 'SPY', root: 'SPY', expiry, type: call ? 'call' : 'put', style: 'american', status: 'active', tradable: true, strike, multiplier: 100, size: 100, openInterest: 1000,
     oiDate: '2026-09-25', deliverables: [{ type: 'equity', symbol: 'SPY', amount: '100', allocation_percentage: '100', delayed_settlement: false }] });
-  const anchor = make(credit ? 95 : call ? 100 : 101), hedge = make(credit ? 94 : call ? 101 : 100);
+  const anchor = make(credit ? call ? 105 : 95 : call ? 100 : 101), hedge = make(credit ? call ? 106 : 94 : call ? 101 : 100);
   const q = (bid, delta) => ({ bid, ask: bid + .02, bidSize: 100, askSize: 100, condition: ' ', ts: now, delta, iv: .25 });
   return { schema: 1, source: 'alpaca_opra', stockFeed: 'sip', sampled: true, now, clockUncertaintyMs: 50, universe: ['SPY'], marketOpen: true,
     session: { date: '2026-09-28', open: nyTimestamp('2026-09-28', '09:30'), close: nyTimestamp('2026-09-28', '16:00') },
-    spots: { SPY: { price: 100.2, ts: now } }, contexts: { SPY: { rv20: .15, sma20: 99, sma50: 98, previousClose: 100, through: Date.parse('2026-09-25T04:00Z'),
+    spots: { SPY: { price: 100.2, ts: now } }, contexts: { SPY: { rv20: .15, sma20: strategy === 'call_credit' ? 102 : 99, sma50: strategy === 'call_credit' ? 102 : 98, previousClose: 100, through: Date.parse('2026-09-25T04:00Z'),
       intradayReady: true, barEnd: now - 1000, close: call ? 102 : 99, rangeHigh: 101, rangeLow: 100, vwap: 100.5 } },
     contracts: { [anchor.symbol]: anchor, [hedge.symbol]: hedge },
-    quotes: { [anchor.symbol]: q(credit ? 1 : 1.5, credit ? -.25 : call ? .55 : -.55), [hedge.symbol]: q(credit ? .68 : 1, call ? .4 : -.18) } };
+    quotes: { [anchor.symbol]: q(credit ? 1 : 1.5, credit ? call ? .25 : -.25 : call ? .55 : -.55), [hedge.symbol]: q(credit ? .68 : 1, call ? .4 : -.18) } };
 }
 function later(frame, seconds = 30) {
   const f = structuredClone(frame); f.now += seconds * 1000;
@@ -37,11 +38,11 @@ test('independent options stress misses an entry available under primary latency
 });
 const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-7, `${a} != ${b}`);
 
-for (const strategy of OPTIONS_STRATEGIES.map(s => s.id)) test(`${strategy}: standard same-expiry vertical and 100-share economics`, () => {
+for (const strategy of OPTIONS_STRATEGIES.filter(s=>s.type!=='condor').map(s => s.id)) test(`${strategy}: standard same-expiry vertical and 100-share economics`, () => {
   const f = frameFor(strategy), scan = scanOptions(f, [strategy]);
   assert.equal(scan.candidates.length, 1);
   const c = scan.candidates[0]; assert.equal(c.quantity, 1); assert.equal(c.long.expiry, c.short.expiry);
-  near(c.entryCost, strategy === 'put_credit' ? -.28 : .54); near(c.maxLoss, strategy === 'put_credit' ? 72.4 : 54.4);
+  near(c.entryCost, strategy.endsWith('_credit') ? -.28 : .54); near(c.maxLoss, strategy.endsWith('_credit') ? 72.4 : 54.4);
   near(c.immediateRoundTripLoss, 8.4); assert.ok(c.maxProfit > 0);
 });
 test('zero commission still crosses both bid/ask spreads and pays adverse slippage', () => {
@@ -58,7 +59,7 @@ test('reject stale/future/crossed/zero/unknown-condition and insufficient-size q
   for (const patch of [{ ts: start - 5001 }, { ts: start + 1001 }, { bid: 0 }, { ask: .1 }, { condition: 'H' }, { condition: undefined }, { bidSize: 0 }, { bidSize: 1 }, { ask: 2 }]) assert.ok(quoteProblem({ ...original, ...patch }, start));
 });
 test('reject adjusted deliverables, missing/stale OI, wrong type and multiplier', () => {
-  const f = frameFor(), c = Object.values(f.contracts)[0], d = OPTIONS_STRATEGIES[0];
+  const f = frameFor(), c = Object.values(f.contracts)[0], d = OPTIONS_STRATEGIES.find(s=>s.id==='put_credit');
   for (const patch of [{ multiplier: 10 }, { root: 'SPY1' }, { size: 50 }, { deliverables: [] }, { openInterest: null }, { oiDate: '2026-09-01' }, { type: 'call' }, { expiry: '2026-09-28' }]) assert.ok(contractProblem({ ...c, ...patch }, f, d));
 });
 test('missing Greeks and unsynchronized legs cannot enter', () => {
@@ -190,5 +191,55 @@ test('code drift disables only the options lab and preserves the prior ledger', 
   const lab = new OptionsLab(f.engine, null);
   assert.match(lab.unavailable(), /experiment changed/); assert.equal(lab.snapshot().strategies[0].netPnl, null);
   await assert.rejects(() => lab.update({ strategy: 'put_credit', enabled: false, expectedRevision: 0 }), { status: 409 });
-  assert.equal(f.store.get('optionsLab').codeHash, 'old-implementation'); assert.equal(f.engine.status().version, '1.16.0');
+  assert.equal(f.store.get('optionsLab').codeHash, 'old-implementation'); assert.equal(f.engine.status().version, RELEASE.version);
+});
+
+
+test('flat experiment migration preserves historical ledger, rejects stale reviews, and resets every toggle off', async t => {
+  const f = await fixture(); t.after(() => f.store.close());
+  const old = freshOptionsState(); old.codeHash = 'old-version'; old.enabled.put_credit = true;
+  old.trades = [{ strategy: 'put_credit', netPnl: 12, stressNetPnl: 9 }]; f.store.set('optionsLab', old);
+  const lab = new OptionsLab(f.engine, null), migration = lab.snapshot().migration;
+  assert.equal(migration.restartable, true);
+  await assert.rejects(() => lab.restartExperiment({ action: 'archive_flat_and_restart', expectedStateHash: 'stale' }), { status: 409 });
+  await lab.restartExperiment({ action: 'archive_flat_and_restart', expectedStateHash: migration.expectedStateHash });
+  assert.equal(lab.blocked, false); assert.ok(Object.values(lab.state.enabled).every(x => x === false));
+  assert.deepEqual(f.store.get('optionsLabArchive:' + migration.expectedStateHash).state, old);
+  assert.equal(lab.state.trades.length, 0);
+});
+
+test('migration cannot silently abandon an old open or pending shadow spread', async t => {
+  const f = await fixture(); t.after(() => f.store.close());
+  for (const field of ['positions','pending']) {
+    const old = freshOptionsState(); old.codeHash = 'old-version'; old[field] = [{ strategy: 'put_credit' }]; f.store.set('optionsLab', old);
+    const lab = new OptionsLab(f.engine, null), migration = lab.snapshot().migration;
+    assert.equal(migration.restartable, false);
+    await assert.rejects(() => lab.restartExperiment({ action: 'archive_flat_and_restart', expectedStateHash: migration.expectedStateHash }), /open or pending/);
+    assert.deepEqual(f.store.get('optionsLab'), old);
+  }
+});
+
+test('call credit requires bearish context, OTM short call and higher-strike long protection', () => {
+  const f = frameFor('call_credit'), scan = scanOptions(f, ['call_credit']);
+  const c = scan.candidates[0]; assert.ok(c.long.strike > c.short.strike); assert.ok(c.short.strike > f.spots.SPY.price);
+  f.contexts.SPY.sma50 = 99; assert.equal(scanOptions(f, ['call_credit']).candidates.length, 0);
+  f.contexts.SPY.sma50 = 102; f.quotes[c.short.symbol].iv = .16; assert.equal(scanOptions(f, ['call_credit']).candidates.length, 0);
+});
+
+
+test('experiment restart API requires authentication and rejects cross-origin mutation', async t => {
+  const f = await fixture(); t.after(() => f.store.close());
+  const old = freshOptionsState(); old.codeHash = 'legacy'; f.store.set('optionsLab', old);
+  const lab = new OptionsLab(f.engine, null); f.engine.optionsLab = lab;
+  const server = createDashboard(f.engine, f.cfg);
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { server.closeStreams(); server.close(); });
+  const url = `http://127.0.0.1:${server.address().port}/api/options-experiment`;
+  const body = JSON.stringify({ action: 'archive_flat_and_restart', expectedStateHash: lab.snapshot().migration.expectedStateHash });
+  assert.equal((await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body })).status, 401);
+  const headers = { Authorization: `Bearer ${f.cfg.token}`, 'Content-Type': 'application/json' };
+  assert.equal((await fetch(url, { method: 'POST', headers: { ...headers, Origin: 'http://untrusted.invalid' }, body })).status, 403);
+  assert.equal(f.store.get('optionsLab').codeHash, 'legacy');
+  assert.equal((await fetch(url, { method: 'POST', headers, body })).status, 200);
+  assert.equal(lab.blocked, false);
 });

@@ -1,3 +1,5 @@
+> The original v1.9 experiment is documented below. v1.17 adds a fourth, bearish call-credit hypothesis, modularizes the simulator and provides a guarded flat-experiment migration. See [the updated audit and actual research results](RESEARCH-AUDIT-2026-09-25.md). Old tape hashes and historical results remain tied to their original implementation.
+
 Options strategy lab — September 25, 2026
 
 The first options implementation is a **quote-based shadow experiment**, separate from the equity engine and Alpaca orders. The research priority is a defined-risk put credit spread; call and put debit spreads test a directional intraday hypothesis. None is established as profitable. The existing account's external options positions are never imported into this ledger or managed by this module.
@@ -73,3 +75,8 @@ docker compose up -d --build engine
 ```
 
 Keep the existing named volume and do not use `down -v`. The first integrated startup leaves all options strategies off; enable the desired shadow hypotheses in the Options strategy lab. Do not run a second paper stock engine against the same account/database. The isolated verification instance uses port 8082 and a separate local simulation database. It has no Alpaca broker execution client.
+# Round-two addition
+
+The [round-two review](RESEARCH-ROUND2-2026-09-25.md) adds a fifth, default-off iron-condor hypothesis and analyzes official CNDR history alongside PUT/BXM. The policy is now `options-v3`. Every four-leg spread uses one same-expiry put credit wing and one call credit wing; shorts have absolute delta 0.15–0.25 and IV at least 1.25 times prior RV20. Wings are 1–5 dollars; existing per-position and portfolio loss budgets still apply. Maximum terminal loss uses the wider wing less total credit plus all eight contract-side fees. Simultaneous quotes are not a guarantee of an atomic fill. Assignment/exercise may create risk outside that terminal payoff.
+
+This differs materially from CNDR's cash-settled SPX options, approximately 5-delta hedges, Treasury collateral, midpoint marks and monthly expiration roll. Our ETF options are American, narrower, marked at adverse bid/ask with fees, and use existing early profit/loss/time exits. Published index returns are not our strategy returns. No historical executable options backtest is claimed. See the review for the full source and data-gap discussion.

@@ -4,7 +4,7 @@ import { strategyDefinition } from './strategy-registry.js';
 import { ADD_POLICY } from './pyramiding.js';
 
 const source = name => readFileSync(new URL(name, import.meta.url), 'utf8').replaceAll('\r\n','\n');
-const codeHash = hash(['strategy-setups.js','strategies.js','features.js','microstructure.js','noise-area.js','risk.js','engine.js','strategy-manifest.js','strategy-controls.js','strategy-registry.js','portfolio.js','broker.js','broker-budget.js','workers.js','breakout-exits.js','equity-universe.js','feeds.js','stock-history.js','pyramiding.js','position-book.js','market-schedule.js','crypto-universe.js','news-analysis.js','overnight-policy.js','research-desk.js','config.js','crypto-context.js'].map(name=>[name,source(name)]));
+const codeHash = hash(['strategy-setups.js','strategies.js','features.js','microstructure.js','noise-area.js','session-signals.js','vwap-trend.js','monthly-trend.js','daily-history.js','risk.js','engine.js','strategy-manifest.js','strategy-controls.js','strategy-registry.js','portfolio.js','broker.js','broker-budget.js','workers.js','breakout-exits.js','equity-universe.js','feeds.js','stock-history.js','pyramiding.js','position-book.js','market-schedule.js','crypto-universe.js','news-analysis.js','overnight-policy.js','research-desk.js','config.js','crypto-context.js','util.js'].map(name=>[name,source(name)]));
 export function strategyManifest(engine, id) {
   const definition = strategyDefinition(id), c = engine.cfg;
   const parameters = { universe:c.universe?.mode==='all'?{...c.universe,crypto:c.cryptoUniverse}:c.symbols,
@@ -18,7 +18,7 @@ export function strategyManifest(engine, id) {
     jevMode:c.jevMode, jevModel:c.jevModel, jevQuality:c.jevQuality, jevCoherence:c.jevCoherence, enabledStrategies:engine.strategyControls.enabledIds() };
   const manifest = { schema:1, strategy:id, codeHash, parameters, mode:c.mode, accountPolicy:c.accountPolicy,
     trigger:definition?.trigger ?? 'operator', supportedModes:['demo','shadow','paper'], evidenceState:'paper_experiment',
-    dataRequirements:id==='close_strength_carry'?['exchange_calendar','completed_closing_bars','fresh_quotes','fresh_complete_news','bounded_news_classification','engine_allocation','GTC_bracket']:definition?.trigger === 'session' ? ['exchange_calendar','prior_session_bars','fresh_quotes'] : ['completed_bars','fresh_quotes'],
+    dataRequirements:id==='monthly_trend'?['complete_adjusted_monthly_history','exchange_calendar','fresh_quotes','engine_allocation','GTC_bracket']:id==='close_strength_carry'?['exchange_calendar','completed_closing_bars','fresh_quotes','fresh_complete_news','bounded_news_classification','engine_allocation','GTC_bracket']:definition?.trigger === 'session' ? ['exchange_calendar','prior_session_bars','fresh_quotes'] : ['completed_bars','fresh_quotes'],
     sizingPolicy:id === 'noise_area' ? 'fixed_notional_with_explicit_stop_risk' : 'stop_risk_budget', exitPolicy:'owned_bracket_or_software_exit' };
   return { ...manifest, experimentId:hash(manifest) };
 }

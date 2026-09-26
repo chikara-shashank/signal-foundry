@@ -17,8 +17,12 @@ export const STRATEGY_REGISTRY = Object.freeze([
     description: 'Equity momentum supported by fresh best-quote depth and flow.' },
   { id: 'noise_area', name: 'Noise-area breakout', trigger: 'session', defaultEnabled: false,
     description: 'Long-only session breakout with half-hour checks and a trailing exit.' },
+  { id: 'vwap_trend', name: 'Session VWAP trend', trigger: 'session', defaultEnabled: false,
+    description: 'Paper/shadow minute VWAP trend on NOISE_AREA_SYMBOL (SPY/QQQ), with existing risk caps. Retrospective test lost after costs; off by default.' },
   { id: 'close_strength_carry', name: 'Closing strength + news', trigger: 'session', defaultEnabled: false,
     description: 'Paper/shadow multi-session long entries at 15:30–15:55 ET; material favorable news, closing strength, GTC protection and a shared overnight allocation cap.' },
+  { id: 'monthly_trend', name: 'Monthly equity trend', trigger: 'session', defaultEnabled: false,
+    description: 'SPY/QQQ/IWM prior monthly close above its 10-month average; 2% stop, 6% target, 20-session deadline and shared overnight cap. Funded retrospective tests lost in 2024–2026; paper/shadow research only, off by default.' },
 ].map(entry => Object.freeze(entry)));
 
 const byId = new Map(STRATEGY_REGISTRY.map(s => [s.id, s]));

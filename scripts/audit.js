@@ -48,10 +48,6 @@ const report = {
   scannedFiles: files.length, javascriptModules: modules.length,
   missingImports, unreachableModules: modules.filter(file => !reachable.has(file)).map(short),
   unusedImports, singleUseExports, duplicateFiles: [...digest.values()].filter(group => group.length > 1),
-  retainedFingerprintMetadata: [
-    { file: 'src/strategies.js', name: 'positive', reason: 'Unused import retained to avoid changing the frozen equity strategy code hash in a UI-only release.' },
-    { file: 'src/momentum-conditions.js', name: 'CONDITION_SOURCE', reason: 'Source provenance retained inside the frozen normalization and validation fingerprints.' },
-  ],
   scope: 'Conservative static audit. Dynamic dispatch and externally invoked commands require review; absence of findings is not proof that every branch is exercised. Secrets, journals, backups and Git metadata are excluded.',
 };
 console.log(JSON.stringify(report, null, 2));

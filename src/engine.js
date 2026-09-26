@@ -18,7 +18,7 @@ import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout
 import { additionPolicy, additionCandidate, checkAddition, observeCampaign } from './pyramiding.js';
 import { campaignId, campaignEntries, campaignQty, remainingQty } from './position-book.js';
 import { recordTradeMarks } from './trade-performance.js';
-import { CARRY_STRATEGY, carryGuard, overnightAllocation, adverseNews } from './overnight-policy.js';
+import { isCarryStrategy, carryGuard, overnightAllocation, adverseNews } from './overnight-policy.js';
 import { idFor, isCrypto, Mutex, nyDate, positive, terminal, uncertain, validateQuote, floorStep, validBar, quoteOrder, faultDetail } from './util.js';
 
 export class Engine {
@@ -162,6 +162,8 @@ export class Engine {
     // Minute bars remain available to charts; gaps are never forward-filled.
     if (isCrypto(b.symbol) && this.cfg.mode !== 'demo') return;
     if (!warmup && b.symbol === this.noiseArea?.symbol) await this.noiseArea.onBar(b);
+    if (!warmup && !isCrypto(b.symbol)) await this.vwapTrend?.onBar(b);
+    if (!warmup && !isCrypto(b.symbol)) await this.monthlyTrend?.onBar(b);
     if (!f || warmup) return;
     this.snapshots.set(b.symbol, f);
     for (const [a, z] of [['SPY', 'QQQ'], ['BTC/USD', 'ETH/USD']]) {
@@ -184,7 +186,7 @@ export class Engine {
     for (const b of [...bars].sort((x, y) => x.ts - y.ts)) {
       const last = this.features.history.get(symbol)?.at(-1)?.ts;
       if (b.symbol !== symbol || !validBar(b) || (Number.isFinite(last) && b.ts <= last) || b.ts + 60000 > this.clock() + 1000) continue;
-      f = this.features.add(b, this.clock()); this.store.bar(b); this.noiseArea?.addBar(b); restored++;
+      f = this.features.add(b, this.clock()); this.store.bar(b); this.noiseArea?.addBar(b); this.vwapTrend?.addBar(b); restored++;
     }
     if (snapshot && restored && f) this.snapshots.set(symbol, f);
     return restored;
@@ -302,8 +304,8 @@ export class Engine {
     if (isCrypto(c.symbol) && this.cryptoUniverse && !this.cryptoUniverse.allowed(c.symbol,now)) return deny('crypto_rank_unavailable_or_outside_top25');
     if (!isCrypto(c.symbol) && this.universe && !this.universe.entryReady(now)) return deny('universe_scan_stale');
     if (!isCrypto(c.symbol) && adverseNews(this.desk?.currentView(c.symbol,now),now)) return deny('company_news_adverse');
-    if(c.holdingPolicy&&c.strategy!==CARRY_STRATEGY)return deny('carry_policy_invalid');
-    const carry=c.strategy===CARRY_STRATEGY;
+    if(c.holdingPolicy&&!isCarryStrategy(c.strategy))return deny('carry_policy_invalid');
+    const carry=isCarryStrategy(c.strategy);
     if(carry){const reason=carryGuard(this,c);if(reason)return deny(reason);}
     if (this.cfg.mode === 'live' && !qualification(this, c.strategy).liveEligible) return deny('strategy_not_live_qualified');
     if (!paperTest && !this.strategyControls.enabled(c.strategy)) return deny('strategy_disabled');
@@ -675,7 +677,7 @@ export class Engine {
     return this.researchCache;
   }
   entryAvailability() {
-    const now=this.clock(), schedule=this.schedule?.state(now), cutoff=this.strategyControls.enabled(CARRY_STRATEGY)&&schedule?.carryWindow?300000:600000;
+    const now=this.clock(), schedule=this.schedule?.state(now), cutoff=this.strategyControls.enabledIds().some(isCarryStrategy)&&schedule?.carryWindow?300000:600000;
     const equityBlockers=[...(!this.session?.open||this.session.close-now<cutoff||schedule&&!schedule.regular?['equity_session_closed_or_closing']:[]),...(this.universe&&!this.universe.entryReady(now)?['universe_scan_stale']:[]),...(!this.cfg.equities.some(s=>validateQuote(this.quotes.get(s),now,this.cfg.maxQuoteAge))?['equity_quotes_missing_or_stale']:[])];
     const allowed=this.cfg.crypto.filter(s=>this.cfg.cryptoUniverse!=='off'&&(!this.cryptoUniverse||this.cryptoUniverse.allowed(s,now)));
     const cryptoBlockers=[...(!allowed.length?['crypto_rank_unavailable_or_disabled']:[]),...(!allowed.some(s=>validateQuote(this.quotes.get(s),now,this.cfg.maxQuoteAge))?['crypto_quotes_missing_or_stale']:[])];

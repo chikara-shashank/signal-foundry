@@ -1,4 +1,4 @@
-param([string]$Repository = (Split-Path $PSScriptRoot -Parent))
+param([string]$Repository = (Split-Path $PSScriptRoot -Parent), [string]$Message = "")
 $ErrorActionPreference = 'Stop'
 Set-Location -LiteralPath $Repository
 function Git-Checked {
@@ -20,7 +20,8 @@ Git-Checked add .dockerignore .gitignore .env.example Dockerfile README.md compo
 & git diff --cached --quiet
 $stagedExit = $LASTEXITCODE
 if ($stagedExit -eq 1) {
-  Git-Checked commit -m 'Adopt Ledger light and Copper dark themes with shared live performance'
+  if ([string]::IsNullOrWhiteSpace($Message)) { $Message = "Release signal-foundry v$((Get-Content -LiteralPath 'package.json' -Raw | ConvertFrom-Json).version)" }
+  Git-Checked commit -m $Message
 } elseif ($stagedExit -ne 0) { throw 'Cannot inspect staged changes.' }
 if ($branch -ne 'main') {
   Git-Checked switch main

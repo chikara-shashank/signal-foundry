@@ -1,6 +1,6 @@
 {
   "name": "signal-foundry",
-  "version": "1.16.0",
+  "version": "1.18.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24.13.0 <25" },
@@ -16,10 +16,15 @@
     "recovery": "node scripts/recovery.js",
     "release": "node scripts/release.js",
     "backtest": "node --env-file-if-exists=.env scripts/backtest.js",
+    "research:monthly": "node --env-file-if-exists=.env scripts/monthly-research.js",
+    "research:monthly:funded": "node --env-file-if-exists=.env scripts/monthly-funded-research.js",
+    "research:published": "node scripts/published-research.js",
+    "research:data-check": "node --env-file-if-exists=.env scripts/research-data-check.js",
     "research:intraday": "node --env-file-if-exists=.env scripts/intraday-research.js",
     "research:momentum": "node scripts/momentum-research.js",
     "research:momentum:data": "node --env-file-if-exists=.env scripts/momentum-data.js",
     "research:momentum:validation": "node scripts/momentum-validation.js",
+    "research:options:benchmarks": "node scripts/options-benchmarks.js",
     "research:options": "node --env-file-if-exists=.env scripts/options-research.js",
     "doctor": "node --env-file-if-exists=.env scripts/doctor.js",
     "report": "node --env-file-if-exists=.env scripts/report.js"

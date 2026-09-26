@@ -13,6 +13,9 @@ import { AlpacaOrderFeed } from './order-feed.js';
 import { CryptoContext } from './crypto-context.js';
 import { StockHistory } from './stock-history.js';
 import { NoiseArea } from './noise-area.js';
+import { VwapTrend } from './vwap-trend.js';
+import { MonthlyTrend } from './monthly-trend.js';
+import { DailyHistory } from './daily-history.js';
 import { WORKER_STRATEGIES, noiseUnavailable } from './strategy-registry.js';
 import { OptionsData } from './options-data.js';
 import { OptionsLab } from './options-lab.js';
@@ -50,6 +53,8 @@ const cryptoContext = cfg.mode === 'demo' ? null : new CryptoContext(engine);
 engine.cryptoContext=cryptoContext;
 if (cfg.mode !== 'demo') engine.stockHistory = new StockHistory(engine);
 if (!noiseUnavailable(cfg)) engine.noiseArea = new NoiseArea(engine, venue, engine.stockHistory);
+if (['paper', 'shadow'].includes(cfg.mode)) engine.vwapTrend = new VwapTrend(engine, engine.stockHistory);
+if (['paper', 'shadow'].includes(cfg.mode)) engine.monthlyTrend = new MonthlyTrend(engine, new DailyHistory({...cfg,canRead:()=>engine.schedule?.state().equityTracking??false}));
 // Shadow uses real exchange session eligibility while retaining local capital.
 if (cfg.mode === 'shadow') { broker.clock = now => venue.clock(now); broker.assets = () => venue.assets(); }
 let feeds = [], server, quitting = false, accountLock;

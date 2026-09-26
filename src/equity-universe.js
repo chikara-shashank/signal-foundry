@@ -62,6 +62,7 @@ export class EquityUniverse {
   pins() {
     const e=this.engine;
     const owned=[...new Set([...Object.keys(e.managed),...e.pending().map(o=>o.symbol),
+      ...(e.strategyControls?.enabled('monthly_trend') ? ['SPY','QQQ','IWM'].filter(s => e.assets.get(s)?.tradable) : []),
       ...(e.cfg.noiseSymbol&&(!e.assets.size||e.assets.get(e.cfg.noiseSymbol)?.tradable)?[e.cfg.noiseSymbol]:[])])].filter(s=>!isCrypto(s));
     return [...owned,...(e.desk?.watchSymbols()??[]).filter(s=>!owned.includes(s)&&e.assets.get(s)?.tradable).slice(0,Math.max(0,e.cfg.universe.streamLimit-owned.length))];
   }

@@ -133,11 +133,11 @@ Native equity stops can slip, and bracket children activate only after full entr
 
 ## Noise-area session strategy (v1.7)
 
-Adding `noise_area` to `STRATEGIES` enables a long-only version of the noise-area breakout, the only published intraday rule that stayed positive after realistic costs in [the September 2026 tests](docs/INTRADAY-RESEARCH-2026-09.md) (QQQ: +3.4 bps per trade over 10.7 years).
+Adding `noise_area` to `STRATEGIES` enables a long-only research adaptation of the noise-area breakout. The [updated research and implementation audit](docs/RESEARCH-AUDIT-2026-09-25.md) found positive QQQ signal returns only under low-cost assumptions, with negative returns under engine costs. It is not a qualified profitable strategy.
 
 How it works:
 - Each session it loads the trading calendar and 14 prior sessions of 30-minute bars for `NOISE_AREA_SYMBOL`.
-- At every :00 and :30 from 10:00 to 30 minutes before the close, it buys above the upper band and exits at the first check below max(upper band, session VWAP).
+- At every :00 and :30 from 10:00 to 30 minutes before the close, it buys above the upper band and at or above session VWAP, using complete minute history, and exits at the first check below max(upper band, session VWAP).
 - Positions use a fixed `NOISE_AREA_NOTIONAL_USD`. The bar strategies leave that amount free while it is flat.
 - A far `NOISE_AREA_STOP_BPS` bracket stop protects against outages. The normal session-end exit flattens anything left.
 - Every check is recorded as a `noise_area_decision` event and shown in the strategy checklist.
@@ -150,7 +150,7 @@ Known gaps:
 ## Jev decision-mode review
 
 See [the v1.6 robustness review](docs/ROBUSTNESS-v1.6.md) for the revised five-minute crypto profile, IOC entries, request budgeting, strategy economics and forward Jev outcome measurements. The [earlier Jev review](docs/JEV-TRADING-REVIEW.md) explains the classifier's limitations. Neither release establishes profitable trading or exchange-grade HFT.
-Options research is available in v1.9.0: three independently switchable, defined-risk spread hypotheses, OPRA/SIP collection, a separate hypothetical ledger, delayed bid/ask replay and frozen experiment hashes. No options orders are sent to Alpaca. See [research, rules, limitations and commands](docs/OPTIONS-RESEARCH.md). Options controls start off and require paper/shadow mode plus the relevant data access; existing stock strategy controls are unchanged.
+Options research now includes five independently switchable, defined-risk spread hypotheses, OPRA/SIP collection, a separate hypothetical ledger, delayed bid/ask replay and frozen experiment hashes. No options orders are sent to Alpaca. See [research, rules, limitations and commands](docs/OPTIONS-RESEARCH.md). Options controls start off and require paper/shadow mode plus the relevant data access.
 # v1.10 audit remediation
 
 See [the remediation and deployment guide](docs/AUDIT-REMEDIATION.md) for request-budget protection, durable execution incidents, version-filtered strategy results, broker-activity accounting, recovery tools and the remaining research/execution gaps. `scripts/deploy-paper.ps1` preserves the approved $2,000 paper daily-loss limit and verifies the new release before resuming entries. This release does not qualify any strategy for live trading or connect options broker orders.
@@ -160,3 +160,22 @@ See [the remediation and deployment guide](docs/AUDIT-REMEDIATION.md) for reques
 Provider equity fast data runs 09:00–16:00 New York time on actual exchange sessions; regular stock execution starts at 09:30 and early closes shorten the window. Crypto runs continuously using the global top 25 by market cap intersected with Alpaca tradable USD pairs. Use `CRYPTO_UNIVERSE=off` to disable new crypto buys; empty seed symbols no longer disable ranking.
 
 The new Sessions & tomorrow panel shows the calendar, crypto selection, closing-pattern/news watchlist and carry allocation. Closing strength + news is a separately switchable paper/shadow strategy, with entries at 15:30–15:55, GTC brackets, a three-future-session deadline and a combined 9.5% engine-allocation cap including pending buys. Existing day trades keep their exits. Research evidence, exact thresholds, settings, tests and limitations are in [the v1.14 research and implementation review](docs/SESSION-RESEARCH-v1.14.md). No profitability or live qualification is claimed.
+
+
+## Published research and modular session strategies (v1.17)
+
+See the [implementation audit, primary research, executed tests and data limitations](docs/RESEARCH-AUDIT-2026-09-25.md). `npm run research:published` replays the cached SPY/QQQ archive with costs, integer lots and chronological windows. `npm run research:options:benchmarks` analyzes official Cboe index histories; those results are separate from our spread experiments. `npm run research:data-check` verifies the pinned research data access.
+
+`vwap_trend` adds an off-by-default minute session-VWAP equity hypothesis on `NOISE_AREA_SYMBOL` (SPY/QQQ only), with ordinary engine risk limits. Its retrospective result failed cost tests; adding it does not imply promotion. `call_credit` adds an off-by-default defined-risk bearish options hypothesis; it shares the existing options lab limits. Historical executable spread validation remains blocked by missing bid/ask and point-in-time chain data.
+
+Pure session rules live in `session-signals.js`, isolated replay in `session-replay.js`, and broker coordination stays in the engine. Options are separated into policy, historical context, pricing, state transitions, replay, manifest and service modules. A changed flat options experiment can be explicitly archived from the dashboard, preserving the old ledger and starting with all switches off. Open/pending legacy positions prohibit that reset.
+
+## Research round 2: monthly equities and four-leg options
+
+The [round-two research review](docs/RESEARCH-ROUND2-2026-09-25.md) covers supportive and contrary published evidence, reproducible tests, capital constraints and integration limits. The [frozen protocol](docs/RESEARCH-PROTOCOL-ROUND2.md) records rule choices and data-availability amendments.
+
+`monthly_trend` is a default-off paper/shadow stock strategy in Strategy controls: completed monthly close above the 10-month average on SPY/QQQ/IWM, closing-window entries, 2% stop, 6% target, 20-session deadline, and the existing combined overnight cap. When enabled, eligible ETFs are pinned into the scanner; external holdings and normal risk checks still apply. Per-position overnight allocation remains 3.5% by default, so expensive ETFs may have no affordable whole share. Disabling new entries retains owned exits.
+
+`iron_condor` is a default-off Options lab hypothesis. All four standard same-expiry legs must have synchronized executable quotes, sufficient liquidity and bounded aggregate risk. It retains the $100 position / $200 total shadow risk limits. Fees, stressed costs, later-quote fills, assignment exposure checks, recorded legs and deterministic replay now account for every leg. It is not an executable broker options strategy or a reproduction of Cboe CNDR returns.
+
+Run `npm run research:monthly` for normalized monthly signals and buy-and-hold comparisons; `npm run research:monthly:funded` for the separate five-minute isolated-sleeve approximation. Initial downloads need Alpaca credentials; subsequent runs use the local cache. `npm run research:options:benchmarks` includes PUT, BXM and CNDR. Research output never automatically enables a strategy, raises a risk limit or grants live qualification.

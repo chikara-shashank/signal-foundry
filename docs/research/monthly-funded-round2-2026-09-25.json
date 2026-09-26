@@ -1,0 +1,497 @@
+{
+  "asOf": "2026-09-25",
+  "kind": "isolated_funded_monthly_sleeve_five_minute_approximation",
+  "liveEligible": false,
+  "protocol": "docs/RESEARCH-PROTOCOL-ROUND2.md",
+  "sources": [
+    {
+      "file": "data/research/monthly/raw-5min-2017.json.gz",
+      "sha256": "0823b8156927c50f0b907640b60c27a6ac99430bdc7e263cdcb0ed374792828e"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2018.json.gz",
+      "sha256": "22cb00b83ebd947fd25ad840a6c3ec10c714547d5d503389e6c79490fe287e59"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2019.json.gz",
+      "sha256": "d1a47fa92527c8cb68f78447dd857a92b8c19668e917240973e67e85290ea425"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2020.json.gz",
+      "sha256": "c36d52c3431ff50ed30ca8d7ae4b25f01af20494f6987fcf804b93f41dea0f6b"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2021.json.gz",
+      "sha256": "7ecc0030fe58de5ecd9cb467025557b13dfb5f7cceb54a40cdafdc7be8cceeb7"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2022.json.gz",
+      "sha256": "fc91f53743e3ff276fe6b618ed740cf5d5fb7880f3ba3d5fedb8dac6b5eddc13"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2023.json.gz",
+      "sha256": "573bd92293cfea69c6e50cb7a8d5f2a90811abef023172cd99f5801f8fb9d6fb"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2024.json.gz",
+      "sha256": "f826e74411ec5e566657adca4106ca03c3e141981301c353479a8b56d62f3656"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2025.json.gz",
+      "sha256": "da41af008cdf7347742e15c2ae2eff6641c17b8ac31d442c354567c4337c16e0"
+    },
+    {
+      "file": "data/research/monthly/raw-5min-2026.json.gz",
+      "sha256": "9179a6af4d2a2d884e72b9f051d5a63f50e9ac7dcf7a23d4388687a263f026a0"
+    }
+  ],
+  "bars": 565102,
+  "codeHash": "b0bfd384e01458505ed274154e7695f7c4743cdae6b798e13221944a3d0cac8f",
+  "limitations": [
+    "Trade-bar execution approximation, not historical bid/ask replay or actual broker fills. Gap stops may exceed the nominal $10 budget.",
+    "Isolated sleeve assumes no external reservations or competing strategies. Fixed simultaneous symbol priority; real event order may differ.",
+    "Five-minute ranges miss path ordering, quote spreads, fills, gaps in data and intrabar equity drawdown. Missing observations are counted, never interpolated.",
+    "Raw-price replay excludes cash dividends, tax and financing; corporate-action reconciliation is not modeled. These three ETFs have no detected large split discontinuities in this window; inspect provider changes before reuse.",
+    "No untouched holdout; all results remain retrospective and unqualified. End-of-study liquidations are explicitly identified."
+  ],
+  "results": [
+    {
+      "window": "full",
+      "scenario": "base",
+      "costBps": 4,
+      "delayBars": 0,
+      "netPnl": 441.9172489600078,
+      "netReturnPct": 4.419172489600087,
+      "closedTrades": 174,
+      "entries": 174,
+      "winRate": 0.5057471264367817,
+      "profitFactor": 1.9628609172434062,
+      "sampledMaxDrawdownUsd": 80.39919795999776,
+      "maxObservedExposureUsd": 950.6301000000001,
+      "capBreachResponses": 2,
+      "blockedLots": 2057,
+      "missingFiveMinuteBars": 188,
+      "bySymbol": {
+        "SPY": {
+          "closed": 39,
+          "netPnl": 116.56745900000112
+        },
+        "QQQ": {
+          "closed": 54,
+          "netPnl": 297.5209917200015
+        },
+        "IWM": {
+          "closed": 81,
+          "netPnl": 27.82879824000196
+        }
+      },
+      "exitReasons": {
+        "holding_deadline": 58,
+        "stop": 80,
+        "target": 34,
+        "overnight_allocation_limit": 2
+      }
+    },
+    {
+      "window": "development",
+      "scenario": "base",
+      "costBps": 4,
+      "delayBars": 0,
+      "netPnl": 472.12633692000963,
+      "netReturnPct": 4.7212633692000905,
+      "closedTrades": 145,
+      "entries": 145,
+      "winRate": 0.5448275862068965,
+      "profitFactor": 2.3253507628517056,
+      "sampledMaxDrawdownUsd": 80.39919795999776,
+      "maxObservedExposureUsd": 950.6301000000001,
+      "capBreachResponses": 2,
+      "blockedLots": 825,
+      "missingFiveMinuteBars": 188,
+      "bySymbol": {
+        "SPY": {
+          "closed": 39,
+          "netPnl": 116.56745900000112
+        },
+        "QQQ": {
+          "closed": 54,
+          "netPnl": 297.5209917200015
+        },
+        "IWM": {
+          "closed": 52,
+          "netPnl": 58.03788620000145
+        }
+      },
+      "exitReasons": {
+        "holding_deadline": 52,
+        "stop": 61,
+        "target": 30,
+        "overnight_allocation_limit": 2
+      }
+    },
+    {
+      "window": "retrospective_validation",
+      "scenario": "base",
+      "costBps": 4,
+      "delayBars": 0,
+      "netPnl": -0.46028996000131883,
+      "netReturnPct": -0.004602899600014698,
+      "closedTrades": 20,
+      "entries": 20,
+      "winRate": 0.4,
+      "profitFactor": 0.9921009278666396,
+      "sampledMaxDrawdownUsd": 21.005504000000656,
+      "maxObservedExposureUsd": 257.9718,
+      "capBreachResponses": 0,
+      "blockedLots": 908,
+      "missingFiveMinuteBars": 0,
+      "bySymbol": {
+        "SPY": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "QQQ": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "IWM": {
+          "closed": 20,
+          "netPnl": -0.46028995999964195
+        }
+      },
+      "exitReasons": {
+        "stop": 12,
+        "holding_deadline": 5,
+        "target": 3
+      }
+    },
+    {
+      "window": "retrospective_final",
+      "scenario": "base",
+      "costBps": 4,
+      "delayBars": 0,
+      "netPnl": -29.748797999998715,
+      "netReturnPct": -0.29748797999998855,
+      "closedTrades": 9,
+      "entries": 9,
+      "winRate": 0.1111111111111111,
+      "profitFactor": 0.3309441113123693,
+      "sampledMaxDrawdownUsd": 47.00742199999877,
+      "maxObservedExposureUsd": 305.075,
+      "capBreachResponses": 0,
+      "blockedLots": 324,
+      "missingFiveMinuteBars": 0,
+      "bySymbol": {
+        "SPY": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "QQQ": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "IWM": {
+          "closed": 9,
+          "netPnl": -29.74879799999985
+        }
+      },
+      "exitReasons": {
+        "target": 1,
+        "stop": 7,
+        "holding_deadline": 1
+      }
+    },
+    {
+      "window": "full",
+      "scenario": "cost_stress",
+      "costBps": 12,
+      "delayBars": 0,
+      "netPnl": 366.8237468800089,
+      "netReturnPct": 3.668237468800095,
+      "closedTrades": 174,
+      "entries": 174,
+      "winRate": 0.5057471264367817,
+      "profitFactor": 1.7407972117014057,
+      "sampledMaxDrawdownUsd": 94.85869175999142,
+      "maxObservedExposureUsd": 950.6301000000001,
+      "capBreachResponses": 2,
+      "blockedLots": 2057,
+      "missingFiveMinuteBars": 188,
+      "bySymbol": {
+        "SPY": {
+          "closed": 39,
+          "netPnl": 98.90737699999937
+        },
+        "QQQ": {
+          "closed": 54,
+          "netPnl": 273.5611751599993
+        },
+        "IWM": {
+          "closed": 81,
+          "netPnl": -5.644805280001293
+        }
+      },
+      "exitReasons": {
+        "holding_deadline": 58,
+        "stop": 80,
+        "target": 34,
+        "overnight_allocation_limit": 2
+      }
+    },
+    {
+      "window": "development",
+      "scenario": "cost_stress",
+      "costBps": 12,
+      "delayBars": 0,
+      "netPnl": 407.9712107600062,
+      "netReturnPct": 4.079712107600053,
+      "closedTrades": 145,
+      "entries": 145,
+      "winRate": 0.5448275862068965,
+      "profitFactor": 2.060330923046308,
+      "sampledMaxDrawdownUsd": 88.52779387999362,
+      "maxObservedExposureUsd": 950.6301000000001,
+      "capBreachResponses": 2,
+      "blockedLots": 825,
+      "missingFiveMinuteBars": 188,
+      "bySymbol": {
+        "SPY": {
+          "closed": 39,
+          "netPnl": 98.90737699999937
+        },
+        "QQQ": {
+          "closed": 54,
+          "netPnl": 273.5611751599993
+        },
+        "IWM": {
+          "closed": 52,
+          "netPnl": 35.50265859999914
+        }
+      },
+      "exitReasons": {
+        "holding_deadline": 52,
+        "stop": 61,
+        "target": 30,
+        "overnight_allocation_limit": 2
+      }
+    },
+    {
+      "window": "retrospective_validation",
+      "scenario": "cost_stress",
+      "costBps": 12,
+      "delayBars": 0,
+      "netPnl": -7.451069880000432,
+      "netReturnPct": -0.07451069880000105,
+      "closedTrades": 20,
+      "entries": 20,
+      "winRate": 0.4,
+      "profitFactor": 0.8806193550383615,
+      "sampledMaxDrawdownUsd": 23.95651199999884,
+      "maxObservedExposureUsd": 257.9718,
+      "capBreachResponses": 0,
+      "blockedLots": 908,
+      "missingFiveMinuteBars": 0,
+      "bySymbol": {
+        "SPY": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "QQQ": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "IWM": {
+          "closed": 20,
+          "netPnl": -7.45106988000029
+        }
+      },
+      "exitReasons": {
+        "stop": 12,
+        "holding_deadline": 5,
+        "target": 3
+      }
+    },
+    {
+      "window": "retrospective_final",
+      "scenario": "cost_stress",
+      "costBps": 12,
+      "delayBars": 0,
+      "netPnl": -33.69639399999687,
+      "netReturnPct": -0.336963939999968,
+      "closedTrades": 9,
+      "entries": 9,
+      "winRate": 0.1111111111111111,
+      "profitFactor": 0.2980142844589677,
+      "sampledMaxDrawdownUsd": 50.33526599999823,
+      "maxObservedExposureUsd": 305.075,
+      "capBreachResponses": 0,
+      "blockedLots": 324,
+      "missingFiveMinuteBars": 0,
+      "bySymbol": {
+        "SPY": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "QQQ": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "IWM": {
+          "closed": 9,
+          "netPnl": -33.69639400000014
+        }
+      },
+      "exitReasons": {
+        "target": 1,
+        "stop": 7,
+        "holding_deadline": 1
+      }
+    },
+    {
+      "window": "full",
+      "scenario": "delay_stress",
+      "costBps": 4,
+      "delayBars": 1,
+      "netPnl": 441.0949958800011,
+      "netReturnPct": 4.410949958800003,
+      "closedTrades": 174,
+      "entries": 174,
+      "winRate": 0.5057471264367817,
+      "profitFactor": 1.9566668372729714,
+      "sampledMaxDrawdownUsd": 80.97147816000324,
+      "maxObservedExposureUsd": 950.6301000000001,
+      "capBreachResponses": 2,
+      "blockedLots": 2058,
+      "missingFiveMinuteBars": 188,
+      "bySymbol": {
+        "SPY": {
+          "closed": 39,
+          "netPnl": 117.6737233200011
+        },
+        "QQQ": {
+          "closed": 54,
+          "netPnl": 296.46195164000136
+        },
+        "IWM": {
+          "closed": 81,
+          "netPnl": 26.959320920001545
+        }
+      },
+      "exitReasons": {
+        "holding_deadline": 58,
+        "stop": 80,
+        "target": 34,
+        "overnight_allocation_limit": 2
+      }
+    },
+    {
+      "window": "development",
+      "scenario": "delay_stress",
+      "costBps": 4,
+      "delayBars": 1,
+      "netPnl": 471.47212788000434,
+      "netReturnPct": 4.714721278800038,
+      "closedTrades": 145,
+      "entries": 145,
+      "winRate": 0.5448275862068965,
+      "profitFactor": 2.322740821654092,
+      "sampledMaxDrawdownUsd": 80.97147816000324,
+      "maxObservedExposureUsd": 950.6301000000001,
+      "capBreachResponses": 2,
+      "blockedLots": 826,
+      "missingFiveMinuteBars": 188,
+      "bySymbol": {
+        "SPY": {
+          "closed": 39,
+          "netPnl": 117.6737233200011
+        },
+        "QQQ": {
+          "closed": 54,
+          "netPnl": 296.46195164000136
+        },
+        "IWM": {
+          "closed": 52,
+          "netPnl": 57.336452920001165
+        }
+      },
+      "exitReasons": {
+        "holding_deadline": 52,
+        "stop": 61,
+        "target": 30,
+        "overnight_allocation_limit": 2
+      }
+    },
+    {
+      "window": "retrospective_validation",
+      "scenario": "delay_stress",
+      "costBps": 4,
+      "delayBars": 1,
+      "netPnl": -0.1838080000034097,
+      "netReturnPct": -0.001838080000038378,
+      "closedTrades": 20,
+      "entries": 20,
+      "winRate": 0.4,
+      "profitFactor": 0.9969229789530594,
+      "sampledMaxDrawdownUsd": 20.145095999996556,
+      "maxObservedExposureUsd": 257.9718,
+      "capBreachResponses": 0,
+      "blockedLots": 908,
+      "missingFiveMinuteBars": 0,
+      "bySymbol": {
+        "SPY": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "QQQ": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "IWM": {
+          "closed": 20,
+          "netPnl": -0.18380799999968644
+        }
+      },
+      "exitReasons": {
+        "stop": 12,
+        "holding_deadline": 5,
+        "target": 3
+      }
+    },
+    {
+      "window": "retrospective_final",
+      "scenario": "delay_stress",
+      "costBps": 4,
+      "delayBars": 1,
+      "netPnl": -30.193323999999848,
+      "netReturnPct": -0.30193323999999633,
+      "closedTrades": 9,
+      "entries": 9,
+      "winRate": 0.1111111111111111,
+      "profitFactor": 0.32759336325981786,
+      "sampledMaxDrawdownUsd": 47.69704600000114,
+      "maxObservedExposureUsd": 305.075,
+      "capBreachResponses": 0,
+      "blockedLots": 324,
+      "missingFiveMinuteBars": 0,
+      "bySymbol": {
+        "SPY": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "QQQ": {
+          "closed": 0,
+          "netPnl": 0
+        },
+        "IWM": {
+          "closed": 9,
+          "netPnl": -30.193323999999933
+        }
+      },
+      "exitReasons": {
+        "target": 1,
+        "stop": 7,
+        "holding_deadline": 1
+      }
+    }
+  ]
+}

@@ -33,7 +33,9 @@ export class StrategyControls {
     if (!definition) return 'Historical strategy; no installed execution handler.';
     if (id === 'noise_area' && e.portfolio.state.reservedSymbols.includes(e.cfg.noiseSymbol)) return 'Underlying reserved by an external holding; no idle capital reserved.';
     if (definition.trigger === 'session') {
+      if (id === 'monthly_trend') return !['paper','shadow'].includes(e.cfg.mode) ? 'Monthly trend is a paper/shadow experiment.' : !e.cfg.overnight.enabled ? 'Overnight entries are disabled in configuration.' : !e.monthlyTrend || !e.schedule ? 'Daily history and calendar services are not running.' : e.cfg.universe?.mode !== 'all' && !e.cfg.equities.some(s => ['SPY','QQQ','IWM'].includes(s)) ? 'Add SPY, QQQ or IWM to the equity universe.' : null;
       if(id==='close_strength_carry')return !['paper','shadow'].includes(e.cfg.mode)?'Carry entries are a paper/shadow experiment.':!e.cfg.overnight.enabled?'Overnight entries are disabled in configuration.':!e.desk||!e.schedule?'Closing research and calendar services are not running.':null;
+      if (id === 'vwap_trend') return !['paper','shadow'].includes(e.cfg.mode) ? 'VWAP trend is a paper/shadow experiment.' : !['SPY','QQQ'].includes(e.cfg.noiseSymbol) ? 'Research supports SPY/QQQ only; choose NOISE_AREA_SYMBOL accordingly.' : !e.vwapTrend || !e.schedule ? 'Session VWAP and calendar services are not running.' : (e.cfg.universe?.mode !== 'all' && !e.cfg.equities.includes(e.cfg.noiseSymbol)) ? 'Add NOISE_AREA_SYMBOL to the equity universe.' : null;
       if (id !== 'noise_area') return 'Session execution handler is not installed.';
       return noiseUnavailable(e.cfg) ?? (!e.noiseArea ? 'Session execution handler is not running.' : null);
     }

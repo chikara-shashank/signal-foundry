@@ -2,6 +2,7 @@ import { isCrypto, positive, validateQuote } from './util.js';
 import { campaignId, remainingQty } from './position-book.js';
 
 export const CARRY_STRATEGY='close_strength_carry';
+export const isCarryStrategy = id => [CARRY_STRATEGY, 'monthly_trend'].includes(id);
 export function overnightAllocation(engine) {
   const e=engine, book=e.portfolio.state;
   const available=book.valid&&Number.isFinite(book.totalPnl)&&positive(e.account?.equity);
@@ -46,7 +47,8 @@ export function carryGuard(engine, candidate) {
   if(candidate.addition||candidate.sizing)return 'carry_policy_invalid';
   if(isCrypto(candidate.symbol)||!state?.carryWindow||!e.session?.open)return 'carry_entry_window_closed';
   if(!candidate.holdingPolicy||candidate.holdingPolicy.type!=='carry'||!positive(candidate.holdingPolicy.exitBy)||candidate.holdingPolicy.exitBy<=now)return 'carry_policy_invalid';
-  if(!e.desk?.verifiedCandidate(candidate,now))return 'carry_thesis_stale';
+  const verified = candidate.strategy === CARRY_STRATEGY ? e.desk?.verifiedCandidate(candidate,now) : candidate.strategy === 'monthly_trend' && e.monthlyTrend?.verifiedCandidate(candidate,now);
+  if(!verified)return 'carry_thesis_stale';
   if(overnightAllocation(e).headroom<=0)return 'carry_allocation_limit';
   return null;
 }

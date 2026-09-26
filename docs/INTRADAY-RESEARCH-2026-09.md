@@ -1,3 +1,5 @@
+> Archived diagnostic, not production qualification. See [the September 25 implementation audit](RESEARCH-AUDIT-2026-09-25.md) for corrected session validation, next-bar execution, separate signal/lot accounting and the new comparison. Original results below are preserved; some strategies used the close that generated the decision as their reference fill.
+
 # Published intraday strategies · September 2026 tests
 
 `scripts/intraday-research.js` tests four published intraday strategies on Alpaca SIP minute bars. It uses the rules and parameters stated in each paper and fits nothing to this data. Sessions, including early closes, come from Alpaca's trading calendar. Only regular-session bars are used.

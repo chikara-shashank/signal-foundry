@@ -1,4 +1,4 @@
-import { idFor, positive, isCrypto } from './util.js';
+import { idFor, isCrypto } from './util.js';
 
 import { WORKER_STRATEGIES } from './strategy-registry.js';
 import { SETUPS } from './strategy-setups.js';

@@ -4,10 +4,11 @@ const money = n => n === null ? 'Unavailable' : n.toLocaleString('en-US', { styl
 export class OptionsLabView {
   constructor(api) {
     this.api = api; this.rows = new Map(); this.epoch = 0; this.last = 0; this.data = null; this.saving = false; this.loading = false;
+    $('options-restart').addEventListener('click', () => void this.restart());
     $('options-rows').addEventListener('change', event => { if (event.target.dataset.strategy) void this.save(event.target.dataset.strategy, event.target.checked); });
   }
-  clear() { this.epoch++; this.last = 0; this.data = null; this.saving = false; this.loading = false; this.rows.clear(); $('options-rows').replaceChildren(); $('options-message').textContent = ''; }
-  lock() { for (const row of this.rows.values()) row.input.disabled = true; }
+  clear() { this.epoch++; this.last = 0; this.data = null; this.saving = false; this.loading = false; this.rows.clear(); $('options-rows').replaceChildren(); $('options-message').textContent = ''; $('options-restart').hidden = true; }
+  lock() { for (const row of this.rows.values()) row.input.disabled = true; $('options-restart').disabled = true; }
   async refresh() {
     if (this.loading || this.saving || Date.now() - this.last < 10000) return;
     this.loading = true; const epoch = this.epoch;
@@ -33,8 +34,19 @@ export class OptionsLabView {
       catch { if (epoch === this.epoch) { this.data = null; $('options-message').textContent += ' Save outcome unknown; reconnect to verify.'; } }
     } finally { if (epoch === this.epoch) { this.saving = false; this.last = 0; if (this.data) this.render(); else this.lock(); } }
   }
+  async restart() {
+    if (!this.data?.migration?.restartable || this.saving) return;
+    this.saving = true; const epoch = ++this.epoch; this.lock(); $('options-restart').disabled = true;
+    try {
+      const data = await this.api('/api/options-experiment', { action: 'archive_flat_and_restart', expectedStateHash: this.data.migration.expectedStateHash });
+      if (epoch === this.epoch) { this.data = data; $('options-message').textContent = 'Previous ledger archived. New experiment ready with all strategies off.'; }
+    } catch (error) { if (epoch === this.epoch) $('options-message').textContent = error.message; }
+    finally { if (epoch === this.epoch) { this.saving = false; this.last = 0; this.render(); } }
+  }
   render() {
     const d = this.data;
+    $('options-restart').hidden = !d.migration?.restartable;
+    $('options-restart').disabled = this.saving;
     $('options-status').textContent = d.error ?? d.unavailableReason ?? (d.lastAt ? `Last observation ${new Date(d.lastAt).toLocaleTimeString()} · ${d.lastScan?.entryGate.replaceAll('_', ' ')}` : 'Ready · all strategies initially off');
     $('options-note').textContent = d.note;
     $('options-validation').textContent = `${d.validation.verdict} · ${d.validation.holdoutTrades}/${d.validation.minimumTrades} closed holdout trades · ${d.validation.observedHoldoutSessions}/${d.validation.minimumSessions} observed sessions · forward test begins ${d.validation.holdoutStart}. Broker execution is not connected.`;

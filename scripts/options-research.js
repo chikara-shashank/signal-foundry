@@ -1,3 +1,4 @@
+import { optionLegs } from '../src/options-structure.js';
 import { mkdirSync, writeFileSync, appendFileSync, readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { resolve, join } from 'node:path';
@@ -25,7 +26,7 @@ try {
     const state = freshOptionsState(); state.enabled = Object.fromEntries(OPTIONS_STRATEGIES.map(s => [s.id, enabled.includes(s.id)]));
     const deadline = Date.now() + seconds * 1000; let observations = 0, scan;
     do {
-      const watched = [...state.positions, ...state.pending].flatMap(p => [p.long, p.short]);
+      const watched = [...state.positions, ...state.pending].flatMap(p => optionLegs(p).map(l=>l.contract));
       const frame = await data.capture(universe, watched);
       appendFileSync(tape, JSON.stringify(optionsRecord(state, frame, true, observations === 0)) + '\n');
       advanceOptions(state, frame); scan = scanOptions(frame, enabled); observations++;

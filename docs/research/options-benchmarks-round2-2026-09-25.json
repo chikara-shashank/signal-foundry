@@ -1,0 +1,189 @@
+{
+  "asOf": "2026-09-25",
+  "kind": "published_options_index_history_analysis",
+  "liveEligible": false,
+  "sources": [
+    {
+      "symbol": "PUT",
+      "url": "https://cdn-api.cboe.com/api/global/us_indices/daily_prices/PUT_History.csv",
+      "sha256": "ac30048d2cadd021a874d2998e9c2817cdd76586fee9743b5b63ae60ce92f6d0",
+      "observations": 2698
+    },
+    {
+      "symbol": "BXM",
+      "url": "https://cdn-api.cboe.com/api/global/us_indices/daily_prices/BXM_History.csv",
+      "sha256": "92845151433638459d8351bea4baceb9fcf480afb9bed2608a21100f0f895ef1",
+      "observations": 2695
+    },
+    {
+      "symbol": "CNDR",
+      "url": "https://cdn-api.cboe.com/api/global/us_indices/daily_prices/CNDR_History.csv",
+      "sha256": "4826e0bb46f45730df83664f9cba1132ea390e3501d403e18e73e180a59fe757",
+      "observations": 2695
+    }
+  ],
+  "results": [
+    {
+      "symbol": "PUT",
+      "window": "full",
+      "first": "2016-01-04",
+      "last": "2026-09-25",
+      "observations": 2698,
+      "totalReturnPct": 138.93431966509792,
+      "annualizedReturnPct": 8.460969834609289,
+      "volatilityPct": 12.535074816184519,
+      "zeroRateSharpe": 0.7125910267192369,
+      "dailyCloseMaxDrawdownPct": 28.925644405244434,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "PUT",
+      "window": "development",
+      "first": "2016-01-04",
+      "last": "2023-12-29",
+      "observations": 2012,
+      "totalReturnPct": 68.54052367456254,
+      "annualizedReturnPct": 6.75699754497554,
+      "volatilityPct": 13.257855084678589,
+      "zeroRateSharpe": 0.5605436999057123,
+      "dailyCloseMaxDrawdownPct": 28.925644405244434,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "PUT",
+      "window": "retrospective_validation",
+      "first": "2024-01-02",
+      "last": "2025-12-31",
+      "observations": 502,
+      "totalReturnPct": 28.768223065373366,
+      "annualizedReturnPct": 13.505609021793074,
+      "volatilityPct": 10.942739534469549,
+      "zeroRateSharpe": 1.2165909640001327,
+      "dailyCloseMaxDrawdownPct": 15.060523629261846,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "PUT",
+      "window": "final_2026",
+      "first": "2026-01-02",
+      "last": "2026-09-25",
+      "observations": 184,
+      "totalReturnPct": 10.0065243676152,
+      "annualizedReturnPct": 13.991509714929439,
+      "volatilityPct": 7.548010358700299,
+      "zeroRateSharpe": 1.7778831405100366,
+      "dailyCloseMaxDrawdownPct": 4.716592155407517,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "BXM",
+      "window": "full",
+      "first": "2016-01-04",
+      "last": "2026-09-25",
+      "observations": 2695,
+      "totalReturnPct": 127.12435692744366,
+      "annualizedReturnPct": 7.949505875515128,
+      "volatilityPct": 12.860772788676076,
+      "zeroRateSharpe": 0.6616371095955655,
+      "dailyCloseMaxDrawdownPct": 30.25742344122261,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "BXM",
+      "window": "development",
+      "first": "2016-01-04",
+      "last": "2023-12-29",
+      "observations": 2009,
+      "totalReturnPct": 55.93400745077168,
+      "annualizedReturnPct": 5.722452645242582,
+      "volatilityPct": 13.573132836228337,
+      "zeroRateSharpe": 0.4795415491122147,
+      "dailyCloseMaxDrawdownPct": 30.25742344122261,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "BXM",
+      "window": "retrospective_validation",
+      "first": "2024-01-02",
+      "last": "2025-12-31",
+      "observations": 502,
+      "totalReturnPct": 30.90824231178604,
+      "annualizedReturnPct": 14.446846960480508,
+      "volatilityPct": 11.374606939292185,
+      "zeroRateSharpe": 1.24748528124094,
+      "dailyCloseMaxDrawdownPct": 15.46361999697654,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "BXM",
+      "window": "final_2026",
+      "first": "2026-01-02",
+      "last": "2026-09-25",
+      "observations": 184,
+      "totalReturnPct": 11.104361559956267,
+      "annualizedReturnPct": 15.556482325386511,
+      "volatilityPct": 7.71963962021212,
+      "zeroRateSharpe": 1.9172786893141003,
+      "dailyCloseMaxDrawdownPct": 5.212280664530788,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "CNDR",
+      "window": "full",
+      "first": "2016-01-04",
+      "last": "2026-09-25",
+      "observations": 2695,
+      "totalReturnPct": 8.537666565216817,
+      "annualizedReturnPct": 0.7668741524951006,
+      "volatilityPct": 7.322769514190095,
+      "zeroRateSharpe": 0.14136184468113772,
+      "dailyCloseMaxDrawdownPct": 19.46755832354893,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "CNDR",
+      "window": "development",
+      "first": "2016-01-04",
+      "last": "2023-12-29",
+      "observations": 2009,
+      "totalReturnPct": -8.177740138412892,
+      "annualizedReturnPct": -1.0629476292429274,
+      "volatilityPct": 7.376920155144241,
+      "zeroRateSharpe": -0.10809730903396533,
+      "dailyCloseMaxDrawdownPct": 19.46755832354893,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "CNDR",
+      "window": "retrospective_validation",
+      "first": "2024-01-02",
+      "last": "2025-12-31",
+      "observations": 502,
+      "totalReturnPct": 10.234523193654077,
+      "annualizedReturnPct": 5.00315554166002,
+      "volatilityPct": 7.943726787946641,
+      "zeroRateSharpe": 0.6565629619226299,
+      "dailyCloseMaxDrawdownPct": 10.246878765349798,
+      "gapsOverSevenCalendarDays": 0
+    },
+    {
+      "symbol": "CNDR",
+      "window": "final_2026",
+      "first": "2026-01-02",
+      "last": "2026-09-25",
+      "observations": 184,
+      "totalReturnPct": 6.78687670876188,
+      "annualizedReturnPct": 9.43556542362387,
+      "volatilityPct": 4.387441226380648,
+      "zeroRateSharpe": 2.083149125362708,
+      "dailyCloseMaxDrawdownPct": 4.257498719502295,
+      "gapsOverSevenCalendarDays": 0
+    }
+  ],
+  "limitations": [
+    "PUT/BXM/CNDR are SPX collateralized benchmark indexes, not our SPY/QQQ American ETF spreads. CNDR uses 5-delta hedges and Treasury collateral; our narrower wings and earlier exits differ.",
+    "Index-level history does not establish investor fills, net brokerage costs, taxes, capital feasibility or assignment handling.",
+    "No extra trading fee or cash-interest adjustment is imposed on the published index levels; Sharpe uses zero risk-free rate.",
+    "These descriptive windows were chosen after reviewing literature and are not a frozen strategy validation."
+  ]
+}

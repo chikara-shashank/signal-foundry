@@ -1,0 +1,2838 @@
+{
+  "schema": 1,
+  "protocol": "docs/RESEARCH-PROTOCOL-2026-09-25.md",
+  "generatedAt": "2026-09-26T00:34:48.549Z",
+  "source": "cached_alpaca_sip_adjustment_all",
+  "policy": {
+    "capital": 10000,
+    "maxPosition": 500,
+    "maxGross": 3000,
+    "riskPerTrade": 10,
+    "dailyLoss": 2000,
+    "stopBps": 150,
+    "targetBps": 500,
+    "cooldownMinutes": 5,
+    "endBufferMinutes": 5,
+    "entryBufferMinutes": 10
+  },
+  "scenarios": {
+    "commission_free": {
+      "slipBps": 1,
+      "feeBps": 0
+    },
+    "engine_cost": {
+      "slipBps": 3,
+      "feeBps": 1
+    },
+    "adverse": {
+      "slipBps": 6,
+      "feeBps": 1,
+      "delayMinutes": 1
+    }
+  },
+  "files": [
+    {
+      "file": "SPY_2015-12.json.gz",
+      "sha256": "ade89b9e4d97480d8e186cae9a7ba0242299f872573cecdf47922ba51815d545"
+    },
+    {
+      "file": "SPY_2016-01.json.gz",
+      "sha256": "72240e11ac9e297a85a928248937b19967347f277fa2ebd8a2152cc30c47149a"
+    },
+    {
+      "file": "SPY_2016-02.json.gz",
+      "sha256": "23942e5f8bdd0da575572d7e4c022020f5cf8e5c77af21aad6f270a8eb16b958"
+    },
+    {
+      "file": "SPY_2016-03.json.gz",
+      "sha256": "f45bddc4b02c5650c7ed253b4719ee37f1b8d7ec34fbb200504a5565dc650f7f"
+    },
+    {
+      "file": "SPY_2016-04.json.gz",
+      "sha256": "981502468199e5a89a18a380f182303f38b9715017fba5af57a0b6d30069a9f1"
+    },
+    {
+      "file": "SPY_2016-05.json.gz",
+      "sha256": "88f59d03f85168ce3c39940f0e42ec2e54ab6949dd2c8e972eba471c1ca3aba7"
+    },
+    {
+      "file": "SPY_2016-06.json.gz",
+      "sha256": "b1632c9d7040e340db0f91592f9c4fa8ba4ffda3b8524f11daf0326ee7005516"
+    },
+    {
+      "file": "SPY_2016-07.json.gz",
+      "sha256": "08a8485a012c86e6ab54e42d493642f6925168810551f73c54a726db318d5305"
+    },
+    {
+      "file": "SPY_2016-08.json.gz",
+      "sha256": "99073a2da7ace855bd90cd9d163294d05cccc34760fee4efc5ce02b31fe49e71"
+    },
+    {
+      "file": "SPY_2016-09.json.gz",
+      "sha256": "1199dff757a2891da7ec75bbdaca7c419902bd7dd84a018b68161afa6e5d5b13"
+    },
+    {
+      "file": "SPY_2016-10.json.gz",
+      "sha256": "0edd6401a0800f6a28c949a14e7cb4d5b0c7520a11cd24f8cde2a5db92d97760"
+    },
+    {
+      "file": "SPY_2016-11.json.gz",
+      "sha256": "472ba01615e94416c9c7bdf960f5def40704aa5df8002552020a2cc67d1125c7"
+    },
+    {
+      "file": "SPY_2016-12.json.gz",
+      "sha256": "02033aa3e9963820ce929751c2f28e06ed221eebda1f236ff25b76197f9c8ded"
+    },
+    {
+      "file": "SPY_2017-01.json.gz",
+      "sha256": "448441bdccf7a299850b84ea75ac5535fb93b3cc2159ed4c0c30c7725c092c52"
+    },
+    {
+      "file": "SPY_2017-02.json.gz",
+      "sha256": "f6dc1c7e7960f0918e81771cf7bcca8199b5a3882e4b2774539de29431ae6634"
+    },
+    {
+      "file": "SPY_2017-03.json.gz",
+      "sha256": "4be311cab93bf1384f7800488296406b0d17285652990460209f4fbb8cdd2f86"
+    },
+    {
+      "file": "SPY_2017-04.json.gz",
+      "sha256": "9e6a4938d77b61d970ef54ce0f48cd34d638fb91fb196762fb379dfc9ce01913"
+    },
+    {
+      "file": "SPY_2017-05.json.gz",
+      "sha256": "558bdafca4f5afb34c80e2f1681d577e738f79df1e8a44b342210bf5353db58e"
+    },
+    {
+      "file": "SPY_2017-06.json.gz",
+      "sha256": "6eaf51e41a811be2bc6336f18a05e39f1a11bf83280fbf5c1139d650d8d3c18f"
+    },
+    {
+      "file": "SPY_2017-07.json.gz",
+      "sha256": "13fb6f1c01621b14de6d8ecfa06f14e455f0c005606d076c94f6d5047391a222"
+    },
+    {
+      "file": "SPY_2017-08.json.gz",
+      "sha256": "d10f2e9bd1f1e76d408419aca23af8025fed4280b93dd4a9ed7495f6964cf47b"
+    },
+    {
+      "file": "SPY_2017-09.json.gz",
+      "sha256": "57e48185ebec694846163aa20279b4b93f8fcbd1b260541a39daefa684373825"
+    },
+    {
+      "file": "SPY_2017-10.json.gz",
+      "sha256": "cab3bb0281da827c8665a78851989bd7075c5033ef46b71d6de32eea6119982f"
+    },
+    {
+      "file": "SPY_2017-11.json.gz",
+      "sha256": "5f6b4a580f68bca5d4299a88eef33b5b9718d350029906a5f2f2585f9a0c298c"
+    },
+    {
+      "file": "SPY_2017-12.json.gz",
+      "sha256": "891798759d6a76bc8409936e7842338d60548b67ca68fa92c223045880c4b153"
+    },
+    {
+      "file": "SPY_2018-01.json.gz",
+      "sha256": "8bcbd9a69d55ea07e71c3ebb41bef175936f2136ddec627cdfe09de68c880473"
+    },
+    {
+      "file": "SPY_2018-02.json.gz",
+      "sha256": "150647944faa2f77647d3aa88b2049b34bd4c3a304b791805a994f57f5603de5"
+    },
+    {
+      "file": "SPY_2018-03.json.gz",
+      "sha256": "376cd728d0557d6953f1c5ec96dbe4e8ea08e9acee2af6af6263e6a21264a39b"
+    },
+    {
+      "file": "SPY_2018-04.json.gz",
+      "sha256": "9f6e1b522b88cbead0754503cac2e5cd3f2bb507dd5dca75a0d3c00880b76151"
+    },
+    {
+      "file": "SPY_2018-05.json.gz",
+      "sha256": "e277955cb2043f253178a3a0c4d5ccf2e96cfae82b7632f61c3bbc1be3824121"
+    },
+    {
+      "file": "SPY_2018-06.json.gz",
+      "sha256": "42b4fa9ef92278a53c9480c5d7d826a4a55a37c51f93aa4700ceee2564331380"
+    },
+    {
+      "file": "SPY_2018-07.json.gz",
+      "sha256": "127ddc8140d3dd75dc48b1b36c0adb4662fd1b6f9b3e24fcada6ab2d918a925d"
+    },
+    {
+      "file": "SPY_2018-08.json.gz",
+      "sha256": "f35d310923cdec10acb494e242637ee40ad92bd326d1c339cbde9e723044aeeb"
+    },
+    {
+      "file": "SPY_2018-09.json.gz",
+      "sha256": "e12682ae950c4f2e48cdda9822d8c0f1e65455c5de159e91c5e2f1f7d1c05e04"
+    },
+    {
+      "file": "SPY_2018-10.json.gz",
+      "sha256": "c785ad4f05e34db95e2347773812db07e04be37f398c50ef7bd35b6146128ac9"
+    },
+    {
+      "file": "SPY_2018-11.json.gz",
+      "sha256": "f21c0fc6b1f07cca2c2a62890a9c1bf5d9ca69e60e22aa9829cd4060a1ed76e9"
+    },
+    {
+      "file": "SPY_2018-12.json.gz",
+      "sha256": "30f51ec932ddc5c644666fd5fd18f29b1a288c61011cd5e87cdb0917ef668bb8"
+    },
+    {
+      "file": "SPY_2019-01.json.gz",
+      "sha256": "360fab53917572aaafb0c7559c11a349d8ea2d66a72257a0ef05d766de389ab1"
+    },
+    {
+      "file": "SPY_2019-02.json.gz",
+      "sha256": "b3d44b8a1eabf432204cf67358a0c8510daaa1e6f255cbd7a844d99666f6d0ad"
+    },
+    {
+      "file": "SPY_2019-03.json.gz",
+      "sha256": "e2a86633e98dc66620bacf6bfc3a355db4da2f7cc432a7a74267f06b31086105"
+    },
+    {
+      "file": "SPY_2019-04.json.gz",
+      "sha256": "56a6b55e47602b384fa8da51db47e385ea8622c9cbe2bad08a7cd949a92ae257"
+    },
+    {
+      "file": "SPY_2019-05.json.gz",
+      "sha256": "5a1825bdbe03ba2f4f54cf194477e562abc37f196df37aa15da9ea2437ec9896"
+    },
+    {
+      "file": "SPY_2019-06.json.gz",
+      "sha256": "6b747afd8a80b11ce64cf3577e6da23ba9fed9b212701d4752a20432bc640863"
+    },
+    {
+      "file": "SPY_2019-07.json.gz",
+      "sha256": "0679891b6670a9dd6df2dd5d587a95fd20b4912285e93711d25a8c86282073de"
+    },
+    {
+      "file": "SPY_2019-08.json.gz",
+      "sha256": "d4594c77270f941878b6bf860998c80dfc9a85946b97a68a66b24da5490db2d4"
+    },
+    {
+      "file": "SPY_2019-09.json.gz",
+      "sha256": "582d8ed13fac632a0fd106b831996cb45c0a1c1f0b4e94b5d4abecf5f3c54bf0"
+    },
+    {
+      "file": "SPY_2019-10.json.gz",
+      "sha256": "f756f7f680e62174cb00000555bbb180488738f489f25000355c07ff80dbd8b2"
+    },
+    {
+      "file": "SPY_2019-11.json.gz",
+      "sha256": "c09aedbf5088800c7e47426591b2f26deca470f4ec91596d95d338cc1deddd23"
+    },
+    {
+      "file": "SPY_2019-12.json.gz",
+      "sha256": "54816ea591fb1f36f95852de3780e9cf7095e596599a207c48b749832235f643"
+    },
+    {
+      "file": "SPY_2020-01.json.gz",
+      "sha256": "060bf4722e7b91d7d63a70b2accf20339b307711c432d06e88574ddb9cc89204"
+    },
+    {
+      "file": "SPY_2020-02.json.gz",
+      "sha256": "b43d49252d83d18364d4ac47536d6a464bc7f343aba7666fd97325a71b1cfab8"
+    },
+    {
+      "file": "SPY_2020-03.json.gz",
+      "sha256": "f45ab5539019d9b0f51aa7366d03fe1a8512e206f0d82a21a8078ade6be0e015"
+    },
+    {
+      "file": "SPY_2020-04.json.gz",
+      "sha256": "46a48459055299b6f6425d53dbf149ff31f6518d3b79664fd304ec38fd314067"
+    },
+    {
+      "file": "SPY_2020-05.json.gz",
+      "sha256": "bab01c7c2f877c6f33fe630733ab42b4d4b98158050f1ab0f1b7fe0e9df53c70"
+    },
+    {
+      "file": "SPY_2020-06.json.gz",
+      "sha256": "bb527a2f559ec63e162c55f98b146fd66e2c542d6d1804c29943bd085c7a4979"
+    },
+    {
+      "file": "SPY_2020-07.json.gz",
+      "sha256": "f9ce0e08305c818ac251ef9af7a64ece1c49febec1ef8bc9c1c330643d451810"
+    },
+    {
+      "file": "SPY_2020-08.json.gz",
+      "sha256": "b42786e07b43d3474a992d4ceee1a9e3b41205d948903e9c75fe96104b291dd7"
+    },
+    {
+      "file": "SPY_2020-09.json.gz",
+      "sha256": "0dc48b1d3131d3f7e59cb5ad8fe1a89d6efa2b07737d8a005d8e986564bb56ea"
+    },
+    {
+      "file": "SPY_2020-10.json.gz",
+      "sha256": "91606b6d123674aaa0ddc69e0026ecff66897a8829bb6c415c491501cd9b7005"
+    },
+    {
+      "file": "SPY_2020-11.json.gz",
+      "sha256": "440647ee45f6744836afc25881d68000bcf0c406a40a064ce7e6de9018916bea"
+    },
+    {
+      "file": "SPY_2020-12.json.gz",
+      "sha256": "3924c6d5cff48abda219934ace8c996eed20363a885a9f286d474d0ee3be9c31"
+    },
+    {
+      "file": "SPY_2021-01.json.gz",
+      "sha256": "0153b7bfcc950c03a13be44255fd2c52a764f84628928d544fcebe4f66302efb"
+    },
+    {
+      "file": "SPY_2021-02.json.gz",
+      "sha256": "598ac6c158c06cdabfd30de25fc64fd2c49c5701835a058cae5fa255448f8594"
+    },
+    {
+      "file": "SPY_2021-03.json.gz",
+      "sha256": "f0f2e72771642584cbbe4394fa3a4125891d8391c83b079fa7a9b9073c020cb0"
+    },
+    {
+      "file": "SPY_2021-04.json.gz",
+      "sha256": "bd5faad6a667844da92822cd3777cf40af0a154465afe736cd7d7d3d3fc8cb89"
+    },
+    {
+      "file": "SPY_2021-05.json.gz",
+      "sha256": "c082fd8e3ae3836fe6e232306f4a8fbc71e8682a9bb9049d3b58817f473cd823"
+    },
+    {
+      "file": "SPY_2021-06.json.gz",
+      "sha256": "90d01b25a6322380ed08aba6c03a123e1ba4d9bb0d53a9074bd7ac4b3798090a"
+    },
+    {
+      "file": "SPY_2021-07.json.gz",
+      "sha256": "e54e22d07521e462270c7c08281500d328a3b3f4ed8de1a570a078c0d83a05dd"
+    },
+    {
+      "file": "SPY_2021-08.json.gz",
+      "sha256": "8f2c55ced5a8fdaaa7567e9de937838d233d4534435ec8356a7e77d56bb479ff"
+    },
+    {
+      "file": "SPY_2021-09.json.gz",
+      "sha256": "4d91c34e6f463b500720325c92b371ba008b8baa93f895ea9a159ddbc56d5669"
+    },
+    {
+      "file": "SPY_2021-10.json.gz",
+      "sha256": "0c089da7b180207c11e941ceff930ea28dc58eb8b0700088a27f8a51b1989e7e"
+    },
+    {
+      "file": "SPY_2021-11.json.gz",
+      "sha256": "0469c2ca20cd2bb325f049b179ca9c33d9d7f4eaaf593dd9f0086f4da2b15f8b"
+    },
+    {
+      "file": "SPY_2021-12.json.gz",
+      "sha256": "8d509142a092be0c852d96166448bf5c3e91ac7b6a95a2b388e1671aa793bc29"
+    },
+    {
+      "file": "SPY_2022-01.json.gz",
+      "sha256": "6451a7566ba86d3b751109b8dda619e719b963e97a6a4f65f96d62b2e2f0ec10"
+    },
+    {
+      "file": "SPY_2022-02.json.gz",
+      "sha256": "e559708b8407a28edf5a331c3dfc8290b6371ae0f68dea40f35a3de721a9ee2e"
+    },
+    {
+      "file": "SPY_2022-03.json.gz",
+      "sha256": "86e4a3d26d4220125a1b1ae49ffc1a3f07083a3015f1a06d1143c74f46998393"
+    },
+    {
+      "file": "SPY_2022-04.json.gz",
+      "sha256": "541cd10f898eb978e9c2f8c826d6538d9736f5c18c64cc31bfaf563e4bcd110f"
+    },
+    {
+      "file": "SPY_2022-05.json.gz",
+      "sha256": "481d6144da0dc8c7c4fa173f6fe59308fb895c7c94d130bba022c57bd5c93f9a"
+    },
+    {
+      "file": "SPY_2022-06.json.gz",
+      "sha256": "cb87092648baeb0ca6503dcfb9766faaae6406bcd7e5be4c5cb0cce6c95d0dd7"
+    },
+    {
+      "file": "SPY_2022-07.json.gz",
+      "sha256": "6f45ec8cc98218e0ea58e102e82673c6540fbdb9141914eddd30f610e2dca3e2"
+    },
+    {
+      "file": "SPY_2022-08.json.gz",
+      "sha256": "413be3ba7ad209c8061189637bcc6eea957be8e6bee04a8bcb1447144d4b7e54"
+    },
+    {
+      "file": "SPY_2022-09.json.gz",
+      "sha256": "8d88c627bf3c37f5a9af271d7e239d94fe6df6f28228d0a795c628fecbed1bcf"
+    },
+    {
+      "file": "SPY_2022-10.json.gz",
+      "sha256": "671df1cb178984b5ca16ab0bc1aebfde54f3ff13b13f55b2cab279d41e050a00"
+    },
+    {
+      "file": "SPY_2022-11.json.gz",
+      "sha256": "f06956d834482055aa5ebff9735420d1b705007cc2b3096134c6147d77cee2b8"
+    },
+    {
+      "file": "SPY_2022-12.json.gz",
+      "sha256": "ef0f0d84389cb8b3ce390c7707135ed3f7bb2b914196817ee415906192a0a32e"
+    },
+    {
+      "file": "SPY_2023-01.json.gz",
+      "sha256": "fb7f37690907e804783e85d023ec62a09533406c7488bff43a4c2ff6d0bee515"
+    },
+    {
+      "file": "SPY_2023-02.json.gz",
+      "sha256": "5b098fd3c6aad3a97a5a9cd36280110ac06f5547a340c6aa80201719f3329f94"
+    },
+    {
+      "file": "SPY_2023-03.json.gz",
+      "sha256": "3bcf1b949cebecf70f5e78da0420c1233bf5df8fd7d00b5f1d03257099badf81"
+    },
+    {
+      "file": "SPY_2023-04.json.gz",
+      "sha256": "4581c2269b8aa290dc0bfc12d10428047550b9fcdcb397e621a131313f574c66"
+    },
+    {
+      "file": "SPY_2023-05.json.gz",
+      "sha256": "653c476314f80c4a2f11fbf5f2f9df9337215cf58fbd9d8f7ab5d854b5e0a5bf"
+    },
+    {
+      "file": "SPY_2023-06.json.gz",
+      "sha256": "97eaf36348a55b9520bf1479490e60cf70ee3dc0829c2e57b27da18dd48c55a9"
+    },
+    {
+      "file": "SPY_2023-07.json.gz",
+      "sha256": "5a00ab4d025bc9b6e0c19aba2ce797c20b369c436085b316637754b94844bc07"
+    },
+    {
+      "file": "SPY_2023-08.json.gz",
+      "sha256": "9391cc879f0bc0ce07c8860b69b1423b5eb52617af25d8c63cd6760041cea1f7"
+    },
+    {
+      "file": "SPY_2023-09.json.gz",
+      "sha256": "ff1e7788596fbedc648692c767061ca08812ac0fa5b196468ee035ce2be62399"
+    },
+    {
+      "file": "SPY_2023-10.json.gz",
+      "sha256": "04159e15609c9d220f75ae947771b087a3d44de7dc39e315857ea31bf5a2a95e"
+    },
+    {
+      "file": "SPY_2023-11.json.gz",
+      "sha256": "c15141140c5a82e4bb823d4787682e19ce0416f27b5eea19dc1f977cd1fcb2f9"
+    },
+    {
+      "file": "SPY_2023-12.json.gz",
+      "sha256": "de2ffe09aa80ccc8c1afdbc209a3a3f2adb874724e95496b23a0e0d13b1e73b2"
+    },
+    {
+      "file": "SPY_2024-01.json.gz",
+      "sha256": "eb90970f0e845d66e3a5b734334e4465385caa6e0655b8ae6fe042a9719fabf8"
+    },
+    {
+      "file": "SPY_2024-02.json.gz",
+      "sha256": "b6e5044a62da84f1b7b7838a18f768b19709f5a372093f7db71889d02635ad3c"
+    },
+    {
+      "file": "SPY_2024-03.json.gz",
+      "sha256": "c6f2c68972d957922682e885534c59b285f7a794d41a23bc95c30335baebe931"
+    },
+    {
+      "file": "SPY_2024-04.json.gz",
+      "sha256": "75c4cb1954a3741a347d8f0a46ba43144f13b40ea8722b0c1f0a4456afde4d87"
+    },
+    {
+      "file": "SPY_2024-05.json.gz",
+      "sha256": "649233def66777390908b6a79294dc9e3a9b752cc9fbd10b2de4a9249a252f00"
+    },
+    {
+      "file": "SPY_2024-06.json.gz",
+      "sha256": "cc5c4861f67cae10a9d2939d842affcdcfc7aef7c36c1ac6c356af9fe954f08d"
+    },
+    {
+      "file": "SPY_2024-07.json.gz",
+      "sha256": "020c6d0174134ffb7b647fda59dc77a54d0f9ffdcfed1dcfc2df6948a4d3d7cf"
+    },
+    {
+      "file": "SPY_2024-08.json.gz",
+      "sha256": "b0af1eec36c89a4461e494eaf374a480abf5f25e14f114be41f81909b1ba317f"
+    },
+    {
+      "file": "SPY_2024-09.json.gz",
+      "sha256": "73a683d844fa7b8a61b5371af73ff3311e2e7083d8d6be1aff41b25858dc1201"
+    },
+    {
+      "file": "SPY_2024-10.json.gz",
+      "sha256": "99a25661eafe4ddbce62d5bb0cbd2d5e9d429c7dbc9bfe54116334d3e0bd5067"
+    },
+    {
+      "file": "SPY_2024-11.json.gz",
+      "sha256": "9bcd258f3dc8ef05843f9bdca215157a6264e6df0b1969d64c5558263ef35e14"
+    },
+    {
+      "file": "SPY_2024-12.json.gz",
+      "sha256": "49d79d97a0b969917ae7a422c594dbddf5bac53aeacaf45395610a93aaaff039"
+    },
+    {
+      "file": "SPY_2025-01.json.gz",
+      "sha256": "c61ddc069d51ed7929ec6c1ed16ce949b0b8fefb15913fb955494e8607fa823a"
+    },
+    {
+      "file": "SPY_2025-02.json.gz",
+      "sha256": "5daa6bd23aa609ccafebc9b667c0c46adaa5c0e2153bce6d69b2800806ef0711"
+    },
+    {
+      "file": "SPY_2025-03.json.gz",
+      "sha256": "676d4e16d18bdce60589c824908a2a68632216a1ca4dd23ab4e05c7b33f73132"
+    },
+    {
+      "file": "SPY_2025-04.json.gz",
+      "sha256": "968b3ab4af79dcaa6b3e6ca6daabd0049212030fb2e2b5301c31a0600583364a"
+    },
+    {
+      "file": "SPY_2025-05.json.gz",
+      "sha256": "7995813bc3535179c3bd6ceea8d5059088306d9efc64c2045a1ebded926111e1"
+    },
+    {
+      "file": "SPY_2025-06.json.gz",
+      "sha256": "0e916c1c0d3a84de24759afbf991a1f6174d16e136630832bdb6bc2a72690ed1"
+    },
+    {
+      "file": "SPY_2025-07.json.gz",
+      "sha256": "7c7e39be32bc4bf22a3118565701082df45b4809eff025e7f4396a49bb8885b0"
+    },
+    {
+      "file": "SPY_2025-08.json.gz",
+      "sha256": "fc5cd48050faf090de2a5ca53499d051886c85a4dfbb4d334e43d2a29a33889c"
+    },
+    {
+      "file": "SPY_2025-09.json.gz",
+      "sha256": "23636a7f7fa169a5bfc8ab4d918eea756de28e0cab385230a34971d02e4fa120"
+    },
+    {
+      "file": "SPY_2025-10.json.gz",
+      "sha256": "898ea380eec900bec70b03e4d5487ff47b90ea0242607573420eaf1f3f4da1c4"
+    },
+    {
+      "file": "SPY_2025-11.json.gz",
+      "sha256": "bb2387866914991f7323f18509118f9c003ff802686a32b5cdc2c421752f13cd"
+    },
+    {
+      "file": "SPY_2025-12.json.gz",
+      "sha256": "6d6bc4d3384489c14d1f07b0d62ad512b349b1414dd0c1735a392718476e6c28"
+    },
+    {
+      "file": "SPY_2026-01.json.gz",
+      "sha256": "2c6b0c7b1d257cd9c68236639f243d61e1bf76da299264ef0fd36cee1b9ef71a"
+    },
+    {
+      "file": "SPY_2026-02.json.gz",
+      "sha256": "94b64c8ffb20883551e9d8f4955a471a33e8913de244cf296e5e131525914cd0"
+    },
+    {
+      "file": "SPY_2026-03.json.gz",
+      "sha256": "9fa8b4e5498fcb66b03f61c5a8202ce22db050f99286332cd13664fe300e93b7"
+    },
+    {
+      "file": "SPY_2026-04.json.gz",
+      "sha256": "f7c66551cf97338e138ce882c17002004f5ff95a83dfd4223bd856a7de30faf3"
+    },
+    {
+      "file": "SPY_2026-05.json.gz",
+      "sha256": "3dbe77f36441dea5fde7ecdeb9599d1f03553dd95494c110afad63372e8069a1"
+    },
+    {
+      "file": "SPY_2026-06.json.gz",
+      "sha256": "7bde409a0c8bca08fff0de09994b9bc1f658ebc00a4eadd1857479e1c77dceb5"
+    },
+    {
+      "file": "SPY_2026-07.json.gz",
+      "sha256": "5b9e4b3fdc4d1d94de716527de7b0aea10bed7190dbfabd4d2c3b0cf172564bb"
+    },
+    {
+      "file": "SPY_2026-08.json.gz",
+      "sha256": "b0ab814f1dac6d579c4316362078a7c8e2cf9173821fc9c022744394452fa556"
+    },
+    {
+      "file": "SPY_2026-09.json.gz",
+      "sha256": "b91c0cf2a0cbed1a78d6696caf21f772eb46cc27406b27ea99d674b2b9c0c7ce"
+    },
+    {
+      "file": "QQQ_2015-12.json.gz",
+      "sha256": "ade89b9e4d97480d8e186cae9a7ba0242299f872573cecdf47922ba51815d545"
+    },
+    {
+      "file": "QQQ_2016-01.json.gz",
+      "sha256": "6a36de0c3ba1bf2afde856d600ab8c8e4e856d2499108ffef9fdc81d4504638f"
+    },
+    {
+      "file": "QQQ_2016-02.json.gz",
+      "sha256": "b8ea0412cfb1007449ea6e3614a431f5242681174dcc68ead32347e60e1fd955"
+    },
+    {
+      "file": "QQQ_2016-03.json.gz",
+      "sha256": "fc8a9166a126c6c503dc46087b8733188eb1ff3c8fd7e3ca25acd6d649c59415"
+    },
+    {
+      "file": "QQQ_2016-04.json.gz",
+      "sha256": "a98b787215b734e09a6f10641cfb76a008335408ccf42fc8e884980f1bd575d7"
+    },
+    {
+      "file": "QQQ_2016-05.json.gz",
+      "sha256": "ee4e7a59c76e4951e9276a749d08790c251b59fecf651241b0f90cb0771f3b7b"
+    },
+    {
+      "file": "QQQ_2016-06.json.gz",
+      "sha256": "2d736838fb0d216b8963d80792e4bfd1e1e425a290c73573181e70e3090f84d7"
+    },
+    {
+      "file": "QQQ_2016-07.json.gz",
+      "sha256": "0115ad46d3ad9d7bad815be4adb5122b74f96195c27f4d9af27844039bb5f0b0"
+    },
+    {
+      "file": "QQQ_2016-08.json.gz",
+      "sha256": "00b8a08ab2b1c2afc255743d20723630524d6d44f591b5f73b4fc65d459d5460"
+    },
+    {
+      "file": "QQQ_2016-09.json.gz",
+      "sha256": "8d7b10b5c4a8b1750c2c066f0e29e40ff183f3036fb3ef423d9e46ef31251f03"
+    },
+    {
+      "file": "QQQ_2016-10.json.gz",
+      "sha256": "dca40fdd6d65bb9bfc335fa42accad3497b8d897056649775fc318f832f79231"
+    },
+    {
+      "file": "QQQ_2016-11.json.gz",
+      "sha256": "357c562255d4dbb35c838e6b87d37525170b117798f6fa9961347009c6a81513"
+    },
+    {
+      "file": "QQQ_2016-12.json.gz",
+      "sha256": "283987ce9679f1c47e6e2cc36a2c9cfa334fbadcbfaacc89d2616eeceab86073"
+    },
+    {
+      "file": "QQQ_2017-01.json.gz",
+      "sha256": "99be5441382cf5466f58590e66ff1532ae79435c8d8a8d8e43f18e4ed952ab6f"
+    },
+    {
+      "file": "QQQ_2017-02.json.gz",
+      "sha256": "a50201bd4287475b13b699feb129cbdacf315dec83a725bdf42a0b5d8fff22b9"
+    },
+    {
+      "file": "QQQ_2017-03.json.gz",
+      "sha256": "ec6918df2ccd294abace09f3cd3d5dca98828fa407ef361e9d2194c4f7646fc3"
+    },
+    {
+      "file": "QQQ_2017-04.json.gz",
+      "sha256": "c77753cff58be6d339dced3bdc2c4903578eb5986d654b98b7db1788e9fc8dac"
+    },
+    {
+      "file": "QQQ_2017-05.json.gz",
+      "sha256": "cb6cb51b12db387b9d1164caf726a457fc417ddbdfe0c2c7ffc7fa65441f872f"
+    },
+    {
+      "file": "QQQ_2017-06.json.gz",
+      "sha256": "8b56288a35e3185a6484df1c44c35092e4e4d3eaea727604ebd85b7093b948fb"
+    },
+    {
+      "file": "QQQ_2017-07.json.gz",
+      "sha256": "ad3fa7481f06ca8c755de0c960fc538bf5069311a162e9740bd91f6b06f540e8"
+    },
+    {
+      "file": "QQQ_2017-08.json.gz",
+      "sha256": "2d1124be381950e3fb57ed64ff33c0c43452514a106fd3f42e93eb81a72cb85c"
+    },
+    {
+      "file": "QQQ_2017-09.json.gz",
+      "sha256": "77a33ce0a44027821db0c598ad0785283b989c7998804977f0ece1aa9a623476"
+    },
+    {
+      "file": "QQQ_2017-10.json.gz",
+      "sha256": "2908369594b4d57bd25de87f9ef347b44c59f5ab7154b03a3a0a6aafd001494f"
+    },
+    {
+      "file": "QQQ_2017-11.json.gz",
+      "sha256": "cc1d5e86ade7d6790a02276614aa0e6541e2e873224a887061ede0058f4b65a1"
+    },
+    {
+      "file": "QQQ_2017-12.json.gz",
+      "sha256": "567f81e54ed33d4e092e17011d18134abbe64e593ab239f23624e5b2ae5adb29"
+    },
+    {
+      "file": "QQQ_2018-01.json.gz",
+      "sha256": "0aee31335e8be64461433ded7a60fa6aa5cd7bc2a6f74c7ccd12ead83211e95d"
+    },
+    {
+      "file": "QQQ_2018-02.json.gz",
+      "sha256": "c49c08555a5c9373bd518a6c1946c796d1407c759aa120d94a463eec3c561709"
+    },
+    {
+      "file": "QQQ_2018-03.json.gz",
+      "sha256": "6f9e8cfe8d1e6855860c90e800bd334a5de8d47bc3c6dd779fb3d3259c647ff5"
+    },
+    {
+      "file": "QQQ_2018-04.json.gz",
+      "sha256": "5ef5ceacd909f4aee101f748e888b70a2ef9e073fe3f4bfdb757cb89cd515f85"
+    },
+    {
+      "file": "QQQ_2018-05.json.gz",
+      "sha256": "9d4c6aac3503432e66e7e75ba0ab8b07eb26909c84cfb3a1f2ab6477d353ede0"
+    },
+    {
+      "file": "QQQ_2018-06.json.gz",
+      "sha256": "1d56787ce8c13187cfc7dec8b6c7cf2fe62504a679ae70af91cab1ff52c2f781"
+    },
+    {
+      "file": "QQQ_2018-07.json.gz",
+      "sha256": "5cccae816ff2af7918814bf4bf5ec177d9ee5de4e637e7dd9142053d5ef24361"
+    },
+    {
+      "file": "QQQ_2018-08.json.gz",
+      "sha256": "22d9e367411109b26ded42773ca43046e365e5ddc326e5c22ccfc2b6ef912e2e"
+    },
+    {
+      "file": "QQQ_2018-09.json.gz",
+      "sha256": "450d2c4d494165358a89bccb39ce6fb4c6fc53711b7d12e7e2176321836299ad"
+    },
+    {
+      "file": "QQQ_2018-10.json.gz",
+      "sha256": "1b8cfba6eee45eeb7cd78787493b5c776ec53cf461476e306b16aac4e6ec01ce"
+    },
+    {
+      "file": "QQQ_2018-11.json.gz",
+      "sha256": "0a42817b7cb6e61e9b8bca07848e86038d8c2895b138760b137ade6487a8f8b9"
+    },
+    {
+      "file": "QQQ_2018-12.json.gz",
+      "sha256": "d9aad62d9154cc0a0f20085148eb641af16c1b3df7353e0292f4f4da8bf8338d"
+    },
+    {
+      "file": "QQQ_2019-01.json.gz",
+      "sha256": "1ce105c589130eee58cee8a851464c2622616f0c0cb6641beab12333404716f2"
+    },
+    {
+      "file": "QQQ_2019-02.json.gz",
+      "sha256": "9c8393ea9a62b97d02b08eeeaec9132363ccd2076cb0d97e490c9e6e49944bf8"
+    },
+    {
+      "file": "QQQ_2019-03.json.gz",
+      "sha256": "5d2e71a7aef96f07e8d17c63ff2ad56e43c3190a8dc1ca46bc0c13aaa5f0987d"
+    },
+    {
+      "file": "QQQ_2019-04.json.gz",
+      "sha256": "3afa5aa5a8a124a1b2d9fe3fdc5c5fd1355170b029cb45319eae32affbb1a8bb"
+    },
+    {
+      "file": "QQQ_2019-05.json.gz",
+      "sha256": "5c6ebe75dfd2a85c189d85f0367ad9000fdecd6aa33434b32a2aa55e6dfe8944"
+    },
+    {
+      "file": "QQQ_2019-06.json.gz",
+      "sha256": "3bcee1b912e2f6d15844dfdf9f0005e2bc909abcb3b8ec5cd651d04b257ff830"
+    },
+    {
+      "file": "QQQ_2019-07.json.gz",
+      "sha256": "861250a2090f648aef4db4ddbd492b8f57be14dcfa30bd66d86ca871316c85dd"
+    },
+    {
+      "file": "QQQ_2019-08.json.gz",
+      "sha256": "da3d5bfa791e958eb256cff15916ca512bd22ccbb61f4387ded0e39c2147a405"
+    },
+    {
+      "file": "QQQ_2019-09.json.gz",
+      "sha256": "62af4b28e004b5dd75c0eec002c622f77c8aa3c2b55dc32fb490d52c4f80f902"
+    },
+    {
+      "file": "QQQ_2019-10.json.gz",
+      "sha256": "198505e2c9267c6afee980bdab36a13104d9b2d71e591240084748301a7bad56"
+    },
+    {
+      "file": "QQQ_2019-11.json.gz",
+      "sha256": "b750e38b3e104f8258dc45b7e892cf58418f4743d3db8ba272acfaf4872510df"
+    },
+    {
+      "file": "QQQ_2019-12.json.gz",
+      "sha256": "467d613ba61324ab6cb8b2a93d96a417565b3ceca4ecbc4de31dc27085bc3d01"
+    },
+    {
+      "file": "QQQ_2020-01.json.gz",
+      "sha256": "dacf99dae95afa0941c3e35768f1a2e3fb882efb01e79b6703a0a0c728862bad"
+    },
+    {
+      "file": "QQQ_2020-02.json.gz",
+      "sha256": "c7862d977ec7552299213df4bb5313b436255214abe0c45ddafda4d197316ccb"
+    },
+    {
+      "file": "QQQ_2020-03.json.gz",
+      "sha256": "f56d9b2ef6443e3c468ae48353bab5f9ae0800bdf7641d7862c0ad003ca787aa"
+    },
+    {
+      "file": "QQQ_2020-04.json.gz",
+      "sha256": "32fc81a07cdccd98bfd3af277ef58791783d1731884023be105efee558024cea"
+    },
+    {
+      "file": "QQQ_2020-05.json.gz",
+      "sha256": "02e7280dbed70751d2696db01ecf374fc17b12c668daf6a170751375d431a8be"
+    },
+    {
+      "file": "QQQ_2020-06.json.gz",
+      "sha256": "8045939cd584f42ebef2c0fee3ceba700c86ff29238d40a1f955644c0e74e970"
+    },
+    {
+      "file": "QQQ_2020-07.json.gz",
+      "sha256": "1d87d2960fd2dcf7fb200ee91e01a5297176f8094d8c766fb98ea34761943fed"
+    },
+    {
+      "file": "QQQ_2020-08.json.gz",
+      "sha256": "7851b989e42ea9632b4bd9a707e539a5c6fbe01f071c90d3cce6c887e502dfee"
+    },
+    {
+      "file": "QQQ_2020-09.json.gz",
+      "sha256": "360be36fdcca2733dca08e71f4f3570652b8572700bf1c17bec04f18152efdaf"
+    },
+    {
+      "file": "QQQ_2020-10.json.gz",
+      "sha256": "f89c192413307a7c1af3a8d989e95146d60d08da99cc14101522096327486c49"
+    },
+    {
+      "file": "QQQ_2020-11.json.gz",
+      "sha256": "71ca3321bea73ff9c33108862781cc2f2c87a263aca81c9b7ae5b7fbda770ec7"
+    },
+    {
+      "file": "QQQ_2020-12.json.gz",
+      "sha256": "31e299e38bcbfc9881e05d89534d7850ba94558169803f910c7ba782b251cf45"
+    },
+    {
+      "file": "QQQ_2021-01.json.gz",
+      "sha256": "651b2b13b01f4b343792075452cf6643fc163dc97e7b2c76f0c3fc87fcc4385c"
+    },
+    {
+      "file": "QQQ_2021-02.json.gz",
+      "sha256": "ca4d2dc0a7ac075aefea549a0468ef9258fa50e57ed3527fe1e0b3caa3e967f2"
+    },
+    {
+      "file": "QQQ_2021-03.json.gz",
+      "sha256": "1133c8ccc6eb71902a5af145ffaa31e8f3b9a02e83328d6a5577258a2888c5b8"
+    },
+    {
+      "file": "QQQ_2021-04.json.gz",
+      "sha256": "569df685131dadb5564d40581ab6f4feea4d800617abbf49f602754344e1c398"
+    },
+    {
+      "file": "QQQ_2021-05.json.gz",
+      "sha256": "f19c27e87adbbb34240aaed8ef17414427b78d408b6f519b4b69ae8f2ec7aff8"
+    },
+    {
+      "file": "QQQ_2021-06.json.gz",
+      "sha256": "76d1091391280c5cf32df7d223dafa663b9178a7cd397139c6b5813360932d48"
+    },
+    {
+      "file": "QQQ_2021-07.json.gz",
+      "sha256": "4ec032d088663d7a34b0506b759817d96f276d389f5e150ecad7e77a59b288dc"
+    },
+    {
+      "file": "QQQ_2021-08.json.gz",
+      "sha256": "38f2c1a52c9459fecfbd4b3df7f564cf0153ef875456519b9dfb8803cf80e907"
+    },
+    {
+      "file": "QQQ_2021-09.json.gz",
+      "sha256": "92725cf78448528f0c11a172d1a4138e39d1cbf41e1301daa6c11050f1f77d81"
+    },
+    {
+      "file": "QQQ_2021-10.json.gz",
+      "sha256": "b5f5f6d0ebff4bac7f48346897bdaaf2d126cf85d370bdedbffabc55b1bbdbff"
+    },
+    {
+      "file": "QQQ_2021-11.json.gz",
+      "sha256": "7de48cd34e923419fbf63002a5f6a26347d24d94b9fa854c6d900de455d60a52"
+    },
+    {
+      "file": "QQQ_2021-12.json.gz",
+      "sha256": "5ff0a4aee1242f41f1a4b994c74965931c1262ea5167e9f982b6d2a41b3e8622"
+    },
+    {
+      "file": "QQQ_2022-01.json.gz",
+      "sha256": "8f212f040453c45a504c847987b353bd1011550a5b5b4f23acca9848d55c6db0"
+    },
+    {
+      "file": "QQQ_2022-02.json.gz",
+      "sha256": "cc6a3ce16efee236002c185bb033f66ef050eaa9f50af12d282405b7e3c4b208"
+    },
+    {
+      "file": "QQQ_2022-03.json.gz",
+      "sha256": "71f9cee60d1a341fe0861c09906a4fa522e9e38e30be12e6c2a5bc715d11bc06"
+    },
+    {
+      "file": "QQQ_2022-04.json.gz",
+      "sha256": "709ae091ac796dc21689de44f9867fc7808cfb9cfcef19314ef91547ed659577"
+    },
+    {
+      "file": "QQQ_2022-05.json.gz",
+      "sha256": "b56f4804580520650711025167f4ccdbc3256a3e81d75c6a3380b720c4314027"
+    },
+    {
+      "file": "QQQ_2022-06.json.gz",
+      "sha256": "02ae6c9a605ec9e82a1b331d259b8381bae2956e4c52bd1ed8c73e8dbc8270e8"
+    },
+    {
+      "file": "QQQ_2022-07.json.gz",
+      "sha256": "037dc22421ea456a5c50b546afc7c12ecf0ee9ae42c42d6d13fbab7e216a4552"
+    },
+    {
+      "file": "QQQ_2022-08.json.gz",
+      "sha256": "23e327c0bd88c6485371bf2141566792511b97d84de16808bee88f07ae9f18cc"
+    },
+    {
+      "file": "QQQ_2022-09.json.gz",
+      "sha256": "23a337c5ba01505eb6aec281a047a4f6b1397927cab54ea6a1f5221f8ec945e0"
+    },
+    {
+      "file": "QQQ_2022-10.json.gz",
+      "sha256": "7864a5e34d279eee5a260f23c1e8232bb37b59983afe60dd21e12cc4abc308b1"
+    },
+    {
+      "file": "QQQ_2022-11.json.gz",
+      "sha256": "6d7c249b4633de7c6602c01d06023850bbb367dbdc62c2569750e92acd124bec"
+    },
+    {
+      "file": "QQQ_2022-12.json.gz",
+      "sha256": "241891712f89c34d3dfa67e84658c3ac44ae17861cc30b75fa3ef7bbdf81cb53"
+    },
+    {
+      "file": "QQQ_2023-01.json.gz",
+      "sha256": "6cc30a5cf0474594d67a37b462b5aa0b4b33f346573b8b9adccf574875e9057f"
+    },
+    {
+      "file": "QQQ_2023-02.json.gz",
+      "sha256": "d9810e9bbb080a42c06b72145028a88453eb4855ee58fce946f600d617a44aff"
+    },
+    {
+      "file": "QQQ_2023-03.json.gz",
+      "sha256": "9d8f598ff3df0b93baf690a1cd40359f068de3ae10c89f0bca11016244a696aa"
+    },
+    {
+      "file": "QQQ_2023-04.json.gz",
+      "sha256": "d943f68fb23b19c54ebfe9de2dcbdd3964a70ac6fa8efb354a3de0dd15dd29a1"
+    },
+    {
+      "file": "QQQ_2023-05.json.gz",
+      "sha256": "582fdcf8768fa707fa1cee4b22d80ef3e362cc71c10e0e6ed728016fe9dd5693"
+    },
+    {
+      "file": "QQQ_2023-06.json.gz",
+      "sha256": "8b66fb2a9a185894cac01db5380c4fea01ba996f8eb9e97181b6284907824ce1"
+    },
+    {
+      "file": "QQQ_2023-07.json.gz",
+      "sha256": "ab245822ed46b832ecb8d4ba2d93bb8042f9125182d9df74f820436625b0327d"
+    },
+    {
+      "file": "QQQ_2023-08.json.gz",
+      "sha256": "c2a9a75cadda099a9a6cc42a700e7b4c96e237db0652b5064ceecd6911d94e6d"
+    },
+    {
+      "file": "QQQ_2023-09.json.gz",
+      "sha256": "3231456cfe50abbbd1807d75d915b6ee39d4dc31fcdaed22ad535ac2ace41303"
+    },
+    {
+      "file": "QQQ_2023-10.json.gz",
+      "sha256": "2631bad25f54922b3d357fc4093bb36a3cfe6ab1d4f2a6fdb3a5dec89ceb1e49"
+    },
+    {
+      "file": "QQQ_2023-11.json.gz",
+      "sha256": "eff0f74bfc815eb143ace4169e867708fbe0a03446cad226c7fe55fea841d92a"
+    },
+    {
+      "file": "QQQ_2023-12.json.gz",
+      "sha256": "98c9e2169e99e71f4e3af903bf33a2a5575380fedbab1375f99424fcea646f24"
+    },
+    {
+      "file": "QQQ_2024-01.json.gz",
+      "sha256": "bc7037d8c847f9e0753870bae0f0af8457caf63b91fba93a5883bfacfc1505b9"
+    },
+    {
+      "file": "QQQ_2024-02.json.gz",
+      "sha256": "cbbf0e7304fcd905e3e7da603d0419d3e076ccdb516d3f488a66d6ade3862fe7"
+    },
+    {
+      "file": "QQQ_2024-03.json.gz",
+      "sha256": "05b06787a8565b9d548d4a8a58d8e214a04f8e8ffb6b3e31422647cd42640f11"
+    },
+    {
+      "file": "QQQ_2024-04.json.gz",
+      "sha256": "8307437bb97ccc419278895324527d84524859b911bfba47c9852285928c4f82"
+    },
+    {
+      "file": "QQQ_2024-05.json.gz",
+      "sha256": "547d06f66b97bf810d17eafd582dfe7a0ece3dadb9f52d98b8ca4ebbaf92a6f4"
+    },
+    {
+      "file": "QQQ_2024-06.json.gz",
+      "sha256": "29c7a5fb73a999bce5e146f6be3cd40aa0dceb5d03808ad82a2071a4a6e9e3a9"
+    },
+    {
+      "file": "QQQ_2024-07.json.gz",
+      "sha256": "df9aea0096868ce495b943a1180b641c93b63fafaef0fbeac091b73207ba0d5b"
+    },
+    {
+      "file": "QQQ_2024-08.json.gz",
+      "sha256": "2d41c6d2c57f6aa7a6673c13c8a43cd87fd9cf818d28644825996eefc2c5a2b1"
+    },
+    {
+      "file": "QQQ_2024-09.json.gz",
+      "sha256": "fd2616082e37a45db0e7f5cc1e5e5101a6c4eacab739494531e77181bced1f7e"
+    },
+    {
+      "file": "QQQ_2024-10.json.gz",
+      "sha256": "818d01e6d77484fa178abaf5d831f47e5a307e12b293c6f9fd34ac642b99870e"
+    },
+    {
+      "file": "QQQ_2024-11.json.gz",
+      "sha256": "18c02b6c4265a1231dade8e49fde4d871b879c8bbb1856cbc5abbdf22f078a1e"
+    },
+    {
+      "file": "QQQ_2024-12.json.gz",
+      "sha256": "2ad97e58a4cf7a76d2fc251879f12475de93d347d8a684e6b0707a58c2b5fc84"
+    },
+    {
+      "file": "QQQ_2025-01.json.gz",
+      "sha256": "4d3318e0240e15a9cd228471f130851616dfb2bf58958644c86a722fa1478070"
+    },
+    {
+      "file": "QQQ_2025-02.json.gz",
+      "sha256": "f0ea94a290e7ae05d6183f2cca29eeb7231235b17efac50a47e79ab26e461500"
+    },
+    {
+      "file": "QQQ_2025-03.json.gz",
+      "sha256": "59efe92c2bd87d2bfa918e3a37d6ce018f7640765c7247d39656d8089c88e6f1"
+    },
+    {
+      "file": "QQQ_2025-04.json.gz",
+      "sha256": "1c6e439350e093f5014371ce5e4597d5f0629d4ece14df2f642967ce04519a1c"
+    },
+    {
+      "file": "QQQ_2025-05.json.gz",
+      "sha256": "1f0328d1f14df7dca6a9eedfd8483061be27118f20d3fc10ef2fe304e5d176e0"
+    },
+    {
+      "file": "QQQ_2025-06.json.gz",
+      "sha256": "d35604bd35b2eb48779e4cf04be81a5f681dbeb2eb4ecb0b2f454e0bc4ce6c3c"
+    },
+    {
+      "file": "QQQ_2025-07.json.gz",
+      "sha256": "fd9153217be28f0dc194682b2a0a232ab3779a54b0886ddc9141d19e728754c5"
+    },
+    {
+      "file": "QQQ_2025-08.json.gz",
+      "sha256": "8bd4951f8b9a397dc2b114ee496aceb6478c489fc94b4704540001ff1e787a21"
+    },
+    {
+      "file": "QQQ_2025-09.json.gz",
+      "sha256": "ac8f265c7646c1c387e515dea2a60decf596c57adc4d9652974d23f82f4e3d37"
+    },
+    {
+      "file": "QQQ_2025-10.json.gz",
+      "sha256": "8ef41d0c969d34423afb85be3cd1329de063aed2833a9341a91a1116dea00689"
+    },
+    {
+      "file": "QQQ_2025-11.json.gz",
+      "sha256": "6843a50aac3d0ed0fa37b6cae0e7ba031259447e329263b305099545cf42c637"
+    },
+    {
+      "file": "QQQ_2025-12.json.gz",
+      "sha256": "f6f4724eab6eded847b7f320ce4c84cb0827ffb1e7977eb45a9bb3dc747f6ff1"
+    },
+    {
+      "file": "QQQ_2026-01.json.gz",
+      "sha256": "7b764176d83ae74f1c70cc54ef657bc74cd4c8d39741255f1c4f9ef1d73845e8"
+    },
+    {
+      "file": "QQQ_2026-02.json.gz",
+      "sha256": "1d37b7316fe7341a75916f836b4c59dfbb4a64c3aa7c30d1023857f57f601b40"
+    },
+    {
+      "file": "QQQ_2026-03.json.gz",
+      "sha256": "143ef86820a54fcb8f16e19e1d06d07db228e92eff02fe22deb70deeb1632472"
+    },
+    {
+      "file": "QQQ_2026-04.json.gz",
+      "sha256": "27accad3f412132c0d8ca5d9cfb461d79602ce738982be4cf2af1defd8fc7d82"
+    },
+    {
+      "file": "QQQ_2026-05.json.gz",
+      "sha256": "3eb57e5e002f11c9063303a0b4e20399362da7ca8e152669ca0191572093bf9c"
+    },
+    {
+      "file": "QQQ_2026-06.json.gz",
+      "sha256": "067dcf5f0564f343e99e54914c6a6853b859edeecf11903253af1da0e8e2a903"
+    },
+    {
+      "file": "QQQ_2026-07.json.gz",
+      "sha256": "8f2814e5256371741150d7cb8bdf495772efdf21c1e1f9885f0bebec40a446a4"
+    },
+    {
+      "file": "QQQ_2026-08.json.gz",
+      "sha256": "60776c74f5e64899d5dc16b1f61854bed31dadfa96687842f4606b9db79a3250"
+    },
+    {
+      "file": "QQQ_2026-09.json.gz",
+      "sha256": "97f34c380723dee43a21877ef8a047491178d8889b3991130cc7825b6ea29181"
+    },
+    {
+      "file": "calendar_2015-12-01_2026-09-23.json",
+      "sha256": "6a9ff044999956ac9308f962f1be9a2af1e3c0f2d4ff0ce3443e780a867ee296"
+    }
+  ],
+  "quality": {
+    "SPY": {
+      "completeSessions": 2676,
+      "excluded": [
+        {
+          "date": "2015-12-01",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-02",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-03",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-04",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-07",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-08",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-09",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-10",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-11",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-14",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-15",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-16",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-17",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-18",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-21",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-22",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-23",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-24",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-28",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-29",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-30",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-31",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2016-02-02",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2019-08-12",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-09",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-12",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-16",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-18",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2021-05-05",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2023-06-05",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2026-05-01",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-04",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-05",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-06",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-07",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-08",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-11",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-12",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-13",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-14",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-05-15",
+          "reason": "missing_from_cache"
+        },
+        {
+          "date": "2026-09-23",
+          "reason": "missing_from_cache"
+        }
+      ]
+    },
+    "QQQ": {
+      "completeSessions": 2687,
+      "excluded": [
+        {
+          "date": "2015-12-01",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-02",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-03",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-04",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-07",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-08",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-09",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-10",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-11",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-14",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-15",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-16",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-17",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-18",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-21",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-22",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-23",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-24",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-28",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-29",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-30",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2015-12-31",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2016-02-02",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2016-02-22",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2018-05-02",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2018-05-03",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-09",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-12",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-16",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2020-03-18",
+          "reason": "incomplete_or_invalid_session"
+        },
+        {
+          "date": "2026-09-23",
+          "reason": "missing_from_cache"
+        }
+      ]
+    }
+  },
+  "results": [
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "full",
+      "sessions": 2666,
+      "signals": 1244,
+      "trades": 976,
+      "zeroLotSignals": 268,
+      "netPnl": 90.2828,
+      "winRate": 0.3873,
+      "dailyCloseDrawdown": 18.928,
+      "dailySharpe": 0.6002,
+      "dailyMean95CI": [
+        0.0044,
+        0.0648
+      ],
+      "diagnosticAllSignalMeanNetBps": 1.4451,
+      "diagnosticAllSignalMeanGrossBps": 3.7057
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "development",
+      "sessions": 1995,
+      "signals": 937,
+      "trades": 937,
+      "zeroLotSignals": 0,
+      "netPnl": 84.972,
+      "winRate": 0.3842,
+      "dailyCloseDrawdown": 18.928,
+      "dailySharpe": 0.6711,
+      "dailyMean95CI": [
+        0.0042,
+        0.0804
+      ],
+      "diagnosticAllSignalMeanNetBps": 2.2469,
+      "diagnosticAllSignalMeanGrossBps": 4.5077
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 237,
+      "trades": 39,
+      "zeroLotSignals": 198,
+      "netPnl": 5.3108,
+      "winRate": 0.4615,
+      "dailyCloseDrawdown": 7.2517,
+      "dailySharpe": 0.3534,
+      "dailyMean95CI": [
+        -0.0279,
+        0.0493
+      ],
+      "diagnosticAllSignalMeanNetBps": -0.8133,
+      "diagnosticAllSignalMeanGrossBps": 1.4467
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "final_2026",
+      "sessions": 169,
+      "signals": 70,
+      "trades": 0,
+      "zeroLotSignals": 70,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.641,
+      "diagnosticAllSignalMeanGrossBps": 0.6189
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "full",
+      "sessions": 2666,
+      "signals": 1244,
+      "trades": 975,
+      "zeroLotSignals": 269,
+      "netPnl": -136.7057,
+      "winRate": 0.3026,
+      "dailyCloseDrawdown": 136.7057,
+      "dailySharpe": -0.8874,
+      "dailyMean95CI": [
+        -0.0833,
+        -0.0197
+      ],
+      "diagnosticAllSignalMeanNetBps": -4.5544,
+      "diagnosticAllSignalMeanGrossBps": 3.7057
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "development",
+      "sessions": 1995,
+      "signals": 937,
+      "trades": 937,
+      "zeroLotSignals": 0,
+      "netPnl": -131.3514,
+      "winRate": 0.301,
+      "dailyCloseDrawdown": 133.7517,
+      "dailySharpe": -1.0128,
+      "dailyMean95CI": [
+        -0.1052,
+        -0.0256
+      ],
+      "diagnosticAllSignalMeanNetBps": -3.753,
+      "diagnosticAllSignalMeanGrossBps": 4.5077
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 237,
+      "trades": 38,
+      "zeroLotSignals": 199,
+      "netPnl": -5.3542,
+      "winRate": 0.3421,
+      "dailyCloseDrawdown": 12.4636,
+      "dailySharpe": -0.3501,
+      "dailyMean95CI": [
+        -0.0508,
+        0.0255
+      ],
+      "diagnosticAllSignalMeanNetBps": -6.8117,
+      "diagnosticAllSignalMeanGrossBps": 1.4467
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "final_2026",
+      "sessions": 169,
+      "signals": 70,
+      "trades": 0,
+      "zeroLotSignals": 70,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.6389,
+      "diagnosticAllSignalMeanGrossBps": 0.6189
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "full",
+      "sessions": 2666,
+      "signals": 1242,
+      "trades": 973,
+      "zeroLotSignals": 269,
+      "netPnl": -370.0284,
+      "winRate": 0.2549,
+      "dailyCloseDrawdown": 370.0284,
+      "dailySharpe": -2.2872,
+      "dailyMean95CI": [
+        -0.1725,
+        -0.1036
+      ],
+      "diagnosticAllSignalMeanNetBps": -10.8153,
+      "diagnosticAllSignalMeanGrossBps": 3.4406
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "development",
+      "sessions": 1995,
+      "signals": 936,
+      "trades": 936,
+      "zeroLotSignals": 0,
+      "netPnl": -353.4571,
+      "winRate": 0.2532,
+      "dailyCloseDrawdown": 353.4571,
+      "dailySharpe": -2.6073,
+      "dailyMean95CI": [
+        -0.2182,
+        -0.1343
+      ],
+      "diagnosticAllSignalMeanNetBps": -9.9201,
+      "diagnosticAllSignalMeanGrossBps": 4.3369
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 236,
+      "trades": 37,
+      "zeroLotSignals": 199,
+      "netPnl": -16.5713,
+      "winRate": 0.2973,
+      "dailyCloseDrawdown": 18.7763,
+      "dailySharpe": -0.9879,
+      "dailyMean95CI": [
+        -0.0805,
+        0.0053
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.6811,
+      "diagnosticAllSignalMeanGrossBps": 0.5709
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "final_2026",
+      "sessions": 169,
+      "signals": 70,
+      "trades": 0,
+      "zeroLotSignals": 70,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.1224,
+      "diagnosticAllSignalMeanGrossBps": 1.1304
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "full",
+      "sessions": 2666,
+      "signals": 1228,
+      "trades": 962,
+      "zeroLotSignals": 266,
+      "netPnl": 89.6114,
+      "winRate": 0.3877,
+      "dailyCloseDrawdown": 17.837,
+      "dailySharpe": 0.5968,
+      "dailyMean95CI": [
+        0.0044,
+        0.0641
+      ],
+      "diagnosticAllSignalMeanNetBps": 1.4566,
+      "diagnosticAllSignalMeanGrossBps": 3.7171
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "development",
+      "sessions": 1995,
+      "signals": 924,
+      "trades": 924,
+      "zeroLotSignals": 0,
+      "netPnl": 82.8481,
+      "winRate": 0.3842,
+      "dailyCloseDrawdown": 17.837,
+      "dailySharpe": 0.6556,
+      "dailyMean95CI": [
+        0.0037,
+        0.0793
+      ],
+      "diagnosticAllSignalMeanNetBps": 2.2129,
+      "diagnosticAllSignalMeanGrossBps": 4.4736
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 234,
+      "trades": 38,
+      "zeroLotSignals": 196,
+      "netPnl": 6.7633,
+      "winRate": 0.4737,
+      "dailyCloseDrawdown": 7.2517,
+      "dailySharpe": 0.4495,
+      "dailyMean95CI": [
+        -0.0266,
+        0.0553
+      ],
+      "diagnosticAllSignalMeanNetBps": -0.6033,
+      "diagnosticAllSignalMeanGrossBps": 1.6569
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "final_2026",
+      "sessions": 169,
+      "signals": 70,
+      "trades": 0,
+      "zeroLotSignals": 70,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.641,
+      "diagnosticAllSignalMeanGrossBps": 0.6189
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "full",
+      "sessions": 2666,
+      "signals": 1228,
+      "trades": 961,
+      "zeroLotSignals": 267,
+      "netPnl": -134.4073,
+      "winRate": 0.3028,
+      "dailyCloseDrawdown": 134.4073,
+      "dailySharpe": -0.8741,
+      "dailyMean95CI": [
+        -0.0819,
+        -0.0183
+      ],
+      "diagnosticAllSignalMeanNetBps": -4.543,
+      "diagnosticAllSignalMeanGrossBps": 3.7171
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "development",
+      "sessions": 1995,
+      "signals": 924,
+      "trades": 924,
+      "zeroLotSignals": 0,
+      "netPnl": -130.7775,
+      "winRate": 0.3009,
+      "dailyCloseDrawdown": 131.5888,
+      "dailySharpe": -1.0101,
+      "dailyMean95CI": [
+        -0.1055,
+        -0.0257
+      ],
+      "diagnosticAllSignalMeanNetBps": -3.787,
+      "diagnosticAllSignalMeanGrossBps": 4.4736
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 234,
+      "trades": 37,
+      "zeroLotSignals": 197,
+      "netPnl": -3.6299,
+      "winRate": 0.3514,
+      "dailyCloseDrawdown": 12.4636,
+      "dailySharpe": -0.2383,
+      "dailyMean95CI": [
+        -0.0489,
+        0.0296
+      ],
+      "diagnosticAllSignalMeanNetBps": -6.6018,
+      "diagnosticAllSignalMeanGrossBps": 1.6569
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "final_2026",
+      "sessions": 169,
+      "signals": 70,
+      "trades": 0,
+      "zeroLotSignals": 70,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.6389,
+      "diagnosticAllSignalMeanGrossBps": 0.6189
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "full",
+      "sessions": 2666,
+      "signals": 1226,
+      "trades": 959,
+      "zeroLotSignals": 267,
+      "netPnl": -367.1788,
+      "winRate": 0.2544,
+      "dailyCloseDrawdown": 367.1788,
+      "dailySharpe": -2.2774,
+      "dailyMean95CI": [
+        -0.1713,
+        -0.1033
+      ],
+      "diagnosticAllSignalMeanNetBps": -10.8638,
+      "diagnosticAllSignalMeanGrossBps": 3.392
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "development",
+      "sessions": 1995,
+      "signals": 923,
+      "trades": 923,
+      "zeroLotSignals": 0,
+      "netPnl": -352.6837,
+      "winRate": 0.2524,
+      "dailyCloseDrawdown": 352.6837,
+      "dailySharpe": -2.6088,
+      "dailyMean95CI": [
+        -0.2178,
+        -0.1336
+      ],
+      "diagnosticAllSignalMeanNetBps": -10.039,
+      "diagnosticAllSignalMeanGrossBps": 4.2178
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 233,
+      "trades": 36,
+      "zeroLotSignals": 197,
+      "netPnl": -14.4951,
+      "winRate": 0.3056,
+      "dailyCloseDrawdown": 18.7763,
+      "dailySharpe": -0.8783,
+      "dailyMean95CI": [
+        -0.0786,
+        0.0101
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.4523,
+      "diagnosticAllSignalMeanGrossBps": 0.8
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "final_2026",
+      "sessions": 169,
+      "signals": 70,
+      "trades": 0,
+      "zeroLotSignals": 70,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.1224,
+      "diagnosticAllSignalMeanGrossBps": 1.1304
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "full",
+      "sessions": 2676,
+      "signals": 21368,
+      "trades": 16804,
+      "zeroLotSignals": 4564,
+      "netPnl": -1241.7718,
+      "winRate": 0.1342,
+      "dailyCloseDrawdown": 1254.3518,
+      "dailySharpe": -3.49,
+      "dailyMean95CI": [
+        -0.5391,
+        -0.3945
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.9396,
+      "diagnosticAllSignalMeanGrossBps": 0.3203
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "development",
+      "sessions": 2004,
+      "signals": 16212,
+      "trades": 16212,
+      "zeroLotSignals": 0,
+      "netPnl": -1193.1333,
+      "winRate": 0.1343,
+      "dailyCloseDrawdown": 1193.1333,
+      "dailySharpe": -4.0128,
+      "dailyMean95CI": [
+        -0.6893,
+        -0.5092
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.9117,
+      "diagnosticAllSignalMeanGrossBps": 0.3481
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 3845,
+      "trades": 592,
+      "zeroLotSignals": 3253,
+      "netPnl": -48.6385,
+      "winRate": 0.1318,
+      "dailyCloseDrawdown": 61.2185,
+      "dailySharpe": -1.3323,
+      "dailyMean95CI": [
+        -0.1823,
+        -0.022
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.9541,
+      "diagnosticAllSignalMeanGrossBps": 0.3057
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "final_2026",
+      "sessions": 170,
+      "signals": 1311,
+      "trades": 0,
+      "zeroLotSignals": 1311,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -2.241,
+      "diagnosticAllSignalMeanGrossBps": 0.0187
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "full",
+      "sessions": 2676,
+      "signals": 21368,
+      "trades": 16801,
+      "zeroLotSignals": 4567,
+      "netPnl": -5134.7403,
+      "winRate": 0.0927,
+      "dailyCloseDrawdown": 5143.4934,
+      "dailySharpe": -10.3947,
+      "dailyMean95CI": [
+        -2.0472,
+        -1.7978
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.9374,
+      "diagnosticAllSignalMeanGrossBps": 0.3203
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "development",
+      "sessions": 2004,
+      "signals": 16212,
+      "trades": 16212,
+      "zeroLotSignals": 0,
+      "netPnl": -4916.7245,
+      "winRate": 0.0928,
+      "dailyCloseDrawdown": 4916.7245,
+      "dailySharpe": -12.6372,
+      "dailyMean95CI": [
+        -2.5788,
+        -2.331
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.9096,
+      "diagnosticAllSignalMeanGrossBps": 0.3481
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 3845,
+      "trades": 589,
+      "zeroLotSignals": 3256,
+      "netPnl": -218.0158,
+      "winRate": 0.09,
+      "dailyCloseDrawdown": 226.7689,
+      "dailySharpe": -3.811,
+      "dailyMean95CI": [
+        -0.655,
+        -0.242
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.9519,
+      "diagnosticAllSignalMeanGrossBps": 0.3057
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "final_2026",
+      "sessions": 170,
+      "signals": 1311,
+      "trades": 0,
+      "zeroLotSignals": 1311,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -8.2387,
+      "diagnosticAllSignalMeanGrossBps": 0.0187
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "full",
+      "sessions": 2676,
+      "signals": 19516,
+      "trades": 15318,
+      "zeroLotSignals": 4198,
+      "netPnl": -8244.8931,
+      "winRate": 0.0766,
+      "dailyCloseDrawdown": 8266.9008,
+      "dailySharpe": -13.2005,
+      "dailyMean95CI": [
+        -3.2563,
+        -2.9115
+      ],
+      "diagnosticAllSignalMeanNetBps": -14.013,
+      "diagnosticAllSignalMeanGrossBps": 0.2386
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "development",
+      "sessions": 2004,
+      "signals": 14802,
+      "trades": 14802,
+      "zeroLotSignals": 0,
+      "netPnl": -7942.55,
+      "winRate": 0.0762,
+      "dailyCloseDrawdown": 7942.55,
+      "dailySharpe": -16.8847,
+      "dailyMean95CI": [
+        -4.1181,
+        -3.8076
+      ],
+      "diagnosticAllSignalMeanNetBps": -14.0445,
+      "diagnosticAllSignalMeanGrossBps": 0.2071
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 3497,
+      "trades": 516,
+      "zeroLotSignals": 2981,
+      "netPnl": -302.3431,
+      "winRate": 0.0891,
+      "dailyCloseDrawdown": 324.3508,
+      "dailySharpe": -4.154,
+      "dailyMean95CI": [
+        -0.9069,
+        -0.311
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.6712,
+      "diagnosticAllSignalMeanGrossBps": 0.5809
+    },
+    {
+      "symbol": "SPY",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "final_2026",
+      "sessions": 170,
+      "signals": 1217,
+      "trades": 0,
+      "zeroLotSignals": 1217,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -14.6124,
+      "diagnosticAllSignalMeanGrossBps": -0.3616
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "full",
+      "sessions": 2679,
+      "signals": 1215,
+      "trades": 1042,
+      "zeroLotSignals": 173,
+      "netPnl": 181.6146,
+      "winRate": 0.4146,
+      "dailyCloseDrawdown": 28.2346,
+      "dailySharpe": 0.8295,
+      "dailyMean95CI": [
+        0.0214,
+        0.1135
+      ],
+      "diagnosticAllSignalMeanNetBps": 4.6179,
+      "diagnosticAllSignalMeanGrossBps": 6.8992
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "development",
+      "sessions": 1996,
+      "signals": 932,
+      "trades": 932,
+      "zeroLotSignals": 0,
+      "netPnl": 155.6713,
+      "winRate": 0.4163,
+      "dailyCloseDrawdown": 20.219,
+      "dailySharpe": 1.025,
+      "dailyMean95CI": [
+        0.0268,
+        0.1288
+      ],
+      "diagnosticAllSignalMeanNetBps": 4.94,
+      "diagnosticAllSignalMeanGrossBps": 7.2214
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 202,
+      "trades": 110,
+      "zeroLotSignals": 92,
+      "netPnl": 25.9433,
+      "winRate": 0.4,
+      "dailyCloseDrawdown": 28.2346,
+      "dailySharpe": 0.4597,
+      "dailyMean95CI": [
+        -0.069,
+        0.1992
+      ],
+      "diagnosticAllSignalMeanNetBps": 4.2525,
+      "diagnosticAllSignalMeanGrossBps": 6.5338
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "commission_free",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 81,
+      "trades": 0,
+      "zeroLotSignals": 81,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": 1.8235,
+      "diagnosticAllSignalMeanGrossBps": 4.1041
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "full",
+      "sessions": 2679,
+      "signals": 1215,
+      "trades": 1041,
+      "zeroLotSignals": 174,
+      "netPnl": -58.7497,
+      "winRate": 0.3497,
+      "dailyCloseDrawdown": 104.1326,
+      "dailySharpe": -0.2666,
+      "dailyMean95CI": [
+        -0.0699,
+        0.0247
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.3832,
+      "diagnosticAllSignalMeanGrossBps": 6.8992
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "development",
+      "sessions": 1996,
+      "signals": 932,
+      "trades": 932,
+      "zeroLotSignals": 0,
+      "netPnl": -58.0465,
+      "winRate": 0.3498,
+      "dailyCloseDrawdown": 103.6064,
+      "dailySharpe": -0.3747,
+      "dailyMean95CI": [
+        -0.0827,
+        0.0226
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.0613,
+      "diagnosticAllSignalMeanGrossBps": 7.2214
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 202,
+      "trades": 109,
+      "zeroLotSignals": 93,
+      "netPnl": -0.7032,
+      "winRate": 0.3486,
+      "dailyCloseDrawdown": 40.6837,
+      "dailySharpe": -0.0127,
+      "dailyMean95CI": [
+        -0.1195,
+        0.1413
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.7484,
+      "diagnosticAllSignalMeanGrossBps": 6.5338
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "engine_cost",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 81,
+      "trades": 0,
+      "zeroLotSignals": 81,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -4.1762,
+      "diagnosticAllSignalMeanGrossBps": 4.1041
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "full",
+      "sessions": 2679,
+      "signals": 1214,
+      "trades": 1040,
+      "zeroLotSignals": 174,
+      "netPnl": -318.9216,
+      "winRate": 0.2942,
+      "dailyCloseDrawdown": 355.9666,
+      "dailySharpe": -1.4636,
+      "dailyMean95CI": [
+        -0.1661,
+        -0.0731
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.872,
+      "diagnosticAllSignalMeanGrossBps": 6.4077
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "development",
+      "sessions": 1996,
+      "signals": 931,
+      "trades": 931,
+      "zeroLotSignals": 0,
+      "netPnl": -278.8992,
+      "winRate": 0.2943,
+      "dailyCloseDrawdown": 288.6614,
+      "dailySharpe": -1.7822,
+      "dailyMean95CI": [
+        -0.1972,
+        -0.0869
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.3574,
+      "diagnosticAllSignalMeanGrossBps": 6.923
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 202,
+      "trades": 109,
+      "zeroLotSignals": 93,
+      "netPnl": -40.0223,
+      "winRate": 0.2936,
+      "dailyCloseDrawdown": 70.1645,
+      "dailySharpe": -0.7654,
+      "dailyMean95CI": [
+        -0.1961,
+        0.0568
+      ],
+      "diagnosticAllSignalMeanNetBps": -9.5657,
+      "diagnosticAllSignalMeanGrossBps": 4.7118
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_legacy",
+      "scenario": "adverse",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 81,
+      "trades": 0,
+      "zeroLotSignals": 81,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -9.5624,
+      "diagnosticAllSignalMeanGrossBps": 4.7151
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "full",
+      "sessions": 2679,
+      "signals": 1197,
+      "trades": 1024,
+      "zeroLotSignals": 173,
+      "netPnl": 179.6032,
+      "winRate": 0.415,
+      "dailyCloseDrawdown": 29.1847,
+      "dailySharpe": 0.8184,
+      "dailyMean95CI": [
+        0.0209,
+        0.1132
+      ],
+      "diagnosticAllSignalMeanNetBps": 4.6334,
+      "diagnosticAllSignalMeanGrossBps": 6.9147
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "development",
+      "sessions": 1996,
+      "signals": 915,
+      "trades": 915,
+      "zeroLotSignals": 0,
+      "netPnl": 153.3207,
+      "winRate": 0.4164,
+      "dailyCloseDrawdown": 20.9735,
+      "dailySharpe": 1.0058,
+      "dailyMean95CI": [
+        0.0244,
+        0.1277
+      ],
+      "diagnosticAllSignalMeanNetBps": 4.9455,
+      "diagnosticAllSignalMeanGrossBps": 7.2269
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 201,
+      "trades": 109,
+      "zeroLotSignals": 92,
+      "netPnl": 26.2824,
+      "winRate": 0.4037,
+      "dailyCloseDrawdown": 29.1847,
+      "dailySharpe": 0.4658,
+      "dailyMean95CI": [
+        -0.0697,
+        0.201
+      ],
+      "diagnosticAllSignalMeanNetBps": 4.3446,
+      "diagnosticAllSignalMeanGrossBps": 6.6258
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "commission_free",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 81,
+      "trades": 0,
+      "zeroLotSignals": 81,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": 1.8235,
+      "diagnosticAllSignalMeanGrossBps": 4.1041
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "full",
+      "sessions": 2679,
+      "signals": 1197,
+      "trades": 1023,
+      "zeroLotSignals": 174,
+      "netPnl": -56.3701,
+      "winRate": 0.3519,
+      "dailyCloseDrawdown": 101.7529,
+      "dailySharpe": -0.2554,
+      "dailyMean95CI": [
+        -0.0686,
+        0.0248
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.3678,
+      "diagnosticAllSignalMeanGrossBps": 6.9147
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "development",
+      "sessions": 1996,
+      "signals": 915,
+      "trades": 915,
+      "zeroLotSignals": 0,
+      "netPnl": -56.2407,
+      "winRate": 0.3519,
+      "dailyCloseDrawdown": 99.0062,
+      "dailySharpe": -0.3623,
+      "dailyMean95CI": [
+        -0.0817,
+        0.0235
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.0557,
+      "diagnosticAllSignalMeanGrossBps": 7.2269
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 201,
+      "trades": 108,
+      "zeroLotSignals": 93,
+      "netPnl": -0.1294,
+      "winRate": 0.3519,
+      "dailyCloseDrawdown": 41.8642,
+      "dailySharpe": -0.0023,
+      "dailyMean95CI": [
+        -0.1214,
+        0.1433
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.6564,
+      "diagnosticAllSignalMeanGrossBps": 6.6258
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "engine_cost",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 81,
+      "trades": 0,
+      "zeroLotSignals": 81,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -4.1762,
+      "diagnosticAllSignalMeanGrossBps": 4.1041
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "full",
+      "sessions": 2679,
+      "signals": 1196,
+      "trades": 1022,
+      "zeroLotSignals": 174,
+      "netPnl": -311.4505,
+      "winRate": 0.2994,
+      "dailyCloseDrawdown": 348.4956,
+      "dailySharpe": -1.4284,
+      "dailyMean95CI": [
+        -0.1644,
+        -0.0699
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.8482,
+      "diagnosticAllSignalMeanGrossBps": 6.4315
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "development",
+      "sessions": 1996,
+      "signals": 914,
+      "trades": 914,
+      "zeroLotSignals": 0,
+      "netPnl": -271.9563,
+      "winRate": 0.2998,
+      "dailyCloseDrawdown": 281.7185,
+      "dailySharpe": -1.7365,
+      "dailyMean95CI": [
+        -0.1936,
+        -0.0851
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.3305,
+      "diagnosticAllSignalMeanGrossBps": 6.95
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 201,
+      "trades": 108,
+      "zeroLotSignals": 93,
+      "netPnl": -39.4942,
+      "winRate": 0.2963,
+      "dailyCloseDrawdown": 71.5955,
+      "dailySharpe": -0.7548,
+      "dailyMean95CI": [
+        -0.1984,
+        0.0571
+      ],
+      "diagnosticAllSignalMeanNetBps": -9.512,
+      "diagnosticAllSignalMeanGrossBps": 4.7656
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "noise_area",
+      "scenario": "adverse",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 81,
+      "trades": 0,
+      "zeroLotSignals": 81,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -9.5624,
+      "diagnosticAllSignalMeanGrossBps": 4.7151
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "full",
+      "sessions": 2687,
+      "signals": 20171,
+      "trades": 17177,
+      "zeroLotSignals": 2994,
+      "netPnl": -996.2014,
+      "winRate": 0.1472,
+      "dailyCloseDrawdown": 1006.6201,
+      "dailySharpe": -2.1096,
+      "dailyMean95CI": [
+        -0.4646,
+        -0.2812
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.5567,
+      "diagnosticAllSignalMeanGrossBps": 0.7232
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "development",
+      "sessions": 2004,
+      "signals": 15085,
+      "trades": 15085,
+      "zeroLotSignals": 0,
+      "netPnl": -838.1444,
+      "winRate": 0.1477,
+      "dailyCloseDrawdown": 838.1444,
+      "dailySharpe": -2.3068,
+      "dailyMean95CI": [
+        -0.5303,
+        -0.2998
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.4625,
+      "diagnosticAllSignalMeanGrossBps": 0.8174
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 3775,
+      "trades": 2092,
+      "zeroLotSignals": 1683,
+      "netPnl": -158.057,
+      "winRate": 0.1434,
+      "dailyCloseDrawdown": 169.5314,
+      "dailySharpe": -1.7096,
+      "dailyMean95CI": [
+        -0.5134,
+        -0.1151
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.8054,
+      "diagnosticAllSignalMeanGrossBps": 0.4745
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "commission_free",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 1311,
+      "trades": 0,
+      "zeroLotSignals": 1311,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -1.9242,
+      "diagnosticAllSignalMeanGrossBps": 0.3556
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "full",
+      "sessions": 2687,
+      "signals": 20171,
+      "trades": 17175,
+      "zeroLotSignals": 2996,
+      "netPnl": -5002.9297,
+      "winRate": 0.1111,
+      "dailyCloseDrawdown": 5002.9297,
+      "dailySharpe": -8.407,
+      "dailyMean95CI": [
+        -1.9996,
+        -1.7228
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.5547,
+      "diagnosticAllSignalMeanGrossBps": 0.7232
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "development",
+      "sessions": 2004,
+      "signals": 15085,
+      "trades": 15085,
+      "zeroLotSignals": 0,
+      "netPnl": -4276.314,
+      "winRate": 0.1111,
+      "dailyCloseDrawdown": 4276.314,
+      "dailySharpe": -9.4552,
+      "dailyMean95CI": [
+        -2.2786,
+        -1.9709
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.4606,
+      "diagnosticAllSignalMeanGrossBps": 0.8174
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 3775,
+      "trades": 2090,
+      "zeroLotSignals": 1685,
+      "netPnl": -726.6157,
+      "winRate": 0.1115,
+      "dailyCloseDrawdown": 726.6157,
+      "dailySharpe": -6.3166,
+      "dailyMean95CI": [
+        -1.8017,
+        -1.1078
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.8033,
+      "diagnosticAllSignalMeanGrossBps": 0.4745
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "engine_cost",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 1311,
+      "trades": 0,
+      "zeroLotSignals": 1311,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -7.9221,
+      "diagnosticAllSignalMeanGrossBps": 0.3556
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "full",
+      "sessions": 2687,
+      "signals": 18479,
+      "trades": 15733,
+      "zeroLotSignals": 2746,
+      "netPnl": -8471.7869,
+      "winRate": 0.1004,
+      "dailyCloseDrawdown": 8471.7869,
+      "dailySharpe": -11.6877,
+      "dailyMean95CI": [
+        -3.3329,
+        -2.9698
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.8895,
+      "diagnosticAllSignalMeanGrossBps": 0.3822
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "development",
+      "sessions": 2004,
+      "signals": 13827,
+      "trades": 13827,
+      "zeroLotSignals": 0,
+      "netPnl": -7283.2646,
+      "winRate": 0.1002,
+      "dailyCloseDrawdown": 7283.2646,
+      "dailySharpe": -13.4745,
+      "dailyMean95CI": [
+        -3.8086,
+        -3.4489
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.9297,
+      "diagnosticAllSignalMeanGrossBps": 0.342
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "retrospective_validation",
+      "sessions": 502,
+      "signals": 3435,
+      "trades": 1906,
+      "zeroLotSignals": 1529,
+      "netPnl": -1188.5224,
+      "winRate": 0.1018,
+      "dailyCloseDrawdown": 1188.5224,
+      "dailySharpe": -8.4283,
+      "dailyMean95CI": [
+        -2.8686,
+        -1.8521
+      ],
+      "diagnosticAllSignalMeanNetBps": -13.6051,
+      "diagnosticAllSignalMeanGrossBps": 0.6671
+    },
+    {
+      "symbol": "QQQ",
+      "strategy": "vwap_trend",
+      "scenario": "adverse",
+      "window": "final_2026",
+      "sessions": 181,
+      "signals": 1217,
+      "trades": 0,
+      "zeroLotSignals": 1217,
+      "netPnl": 0,
+      "winRate": null,
+      "dailyCloseDrawdown": 0,
+      "dailySharpe": null,
+      "dailyMean95CI": [
+        0,
+        0
+      ],
+      "diagnosticAllSignalMeanNetBps": -14.2353,
+      "diagnosticAllSignalMeanGrossBps": 0.036
+    }
+  ],
+  "liveEligible": false,
+  "limitations": [
+    "Bar-based price approximation, not executable-quote validation; assumed spreads.",
+    "Retrospective windows were available to earlier studies; not pristine unseen data.",
+    "Strict complete-session exclusion can bias the sample; exclusions are reported.",
+    "Standalone hypotheses exclude competing strategies, Jev vetoes, external holdings and broker failures.",
+    "Standardized $500 allocation; production noise-area uses its separately configured fixed notional.",
+    "Historical adjusted prices can change integer-lot eligibility; final prospective test must use raw quotes.",
+    "Drawdown uses daily closes and understates intraday risk. Confidence intervals are not corrected for multiple comparisons."
+  ],
+  "dataFingerprint": "cc6fae040b70749666f33c6905d3417a0f817aeec5f50fab99a45ae59bb6dee8",
+  "codeFingerprint": "b8efb08f6e49fddff90c3794edab01c019516fa7a763939d6d393fb6907801b0",
+  "protocolFingerprint": "a81c9ee654ed4cecef8ea154004f84a1bf907b8c558d74d7840fc9639353774d"
+}

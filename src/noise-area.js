@@ -1,14 +1,15 @@
 import { idFor, nyDate } from './util.js';
+import { sessionContext, noiseSignal } from './session-signals.js';
 
 // Noise-area breakout after Zarattini, Aziz & Barbon (2024), long side only: the engine
 // cannot hold agent short positions yet. The band is max/min(open, prior close) scaled by
 // the average absolute move from the open at the same time over the prior 14 sessions.
 // Decisions at each :00/:30 from 10:00 to 30 minutes before the close: open a long above
-// the upper band; exit at the first decision below max(upper band, session VWAP). The
+// both the upper band and session VWAP; exit at the first decision below max(upper band, session VWAP). The
 // engine's session-end exit flattens anything left. docs/INTRADAY-RESEARCH-2026-09.md
 // has the historical test.
 export const NOISE_STRATEGY = 'noise_area';
-const VERSION = '1.0.0', LOOKBACK = 14, STEP = 30, MIN_SAMPLES = 10;
+const VERSION = '1.1.0', LOOKBACK = 14, STEP = 30, MIN_SAMPLES = 10;
 const TARGET = 0.05; // Bracket take-profit placeholder, beyond the strategy's intraday reach.
 
 export class NoiseArea {
@@ -81,22 +82,23 @@ export class NoiseArea {
         const before = [...s.bars.values()].filter(b => b.ts < mark.ts), latest = before.reduce((x, b) => !x || b.ts > x.ts ? b : x, null);
         if (latest?.ts !== mark.ts - 60000 && now - mark.ts < 20000) break; // Wait briefly for the closing minute bar.
         if (now - mark.ts > 90000) { mark.done = 'missed'; this.record(mark, { action: 'missed' }); continue; }
-        if (!latest || mark.ts - latest.ts > 5 * 60000 || s.dayOpen === null) { mark.done = 'no_data'; this.record(mark, { action: 'no_data' }); continue; }
-        const volume = before.reduce((a, b) => a + b.volume, 0);
-        const vwap = volume > 0 ? before.reduce((a, b) => a + (b.vwap ?? (b.high + b.low + b.close) / 3) * b.volume, 0) / volume : latest.close;
-        const price = latest.close, ub = Math.max(s.dayOpen, s.prevClose) * (1 + mark.sigma), lb = Math.min(s.dayOpen, s.prevClose) * (1 - mark.sigma);
+        const contextAtMark = sessionContext(before, s.open, mark.ts);
+        if (!contextAtMark) { mark.done = 'no_data'; this.record(mark, { action: 'no_data' }); continue; }
+        const { price, vwap } = contextAtMark;
+        const signal = noiseSignal({ ...contextAtMark, prevClose: s.prevClose, sigma: mark.sigma });
+        const { ub, lb, exitLine } = signal;
         const owned = e.managed[this.symbol], held = owned?.strategy === NOISE_STRATEGY && !owned.exitReason;
         const pendingEntry = e.pending().some(o => o.symbol === this.symbol && o.kind === 'entry');
         let action = 'hold_flat';
         if (held) {
           action = 'hold_long';
-          if (price < Math.max(ub, vwap)) {
+          if (price < exitLine) {
             await e.mutex.run(() => { const m = e.managed[this.symbol]; if (m?.strategy === NOISE_STRATEGY && !m.exitReason) { m.exitReason = 'noise_trailing_stop'; e.store.set('managed', e.managed); } });
             e.scheduleReconcile(); action = 'exit_long';
           }
         } else if (owned || pendingEntry) action = 'symbol_busy';
         else if (!e.strategyControls.enabled(NOISE_STRATEGY)) action = 'strategy_disabled';
-        else if (price > ub) action = 'enter_long';
+        else if (signal.action === 'enter_long') action = 'enter_long';
         else if (price < lb) action = 'short_signal_not_traded';
         mark.done = action;
         const context = { price, ub, lb, vwap, sigma: mark.sigma, dayOpen: s.dayOpen, prevClose: s.prevClose, mark: mark.t };

@@ -1,7 +1,7 @@
 // Alpaca's minute-bar condition matrix, checked 2026-09-24. This deliberately
 // does not claim to implement every SIP daily-bar or last-sale convention.
 export const CONDITION_VERSION='alpaca-minute-volume-v1-2026-09-24';
-export const CONDITION_SOURCE='https://docs.alpaca.markets/us/docs/market-data-faq';
+// Source specification: https://docs.alpaca.markets/us/docs/market-data-faq
 const commonPrice='FKLOTX56',commonVolumeOnly='CHINPRUVZ47',excluded='MQ9';
 export function tradeEligibility(tape,conditions){
   if(!['A','B','C'].includes(tape)||!Array.isArray(conditions)||!conditions.length||conditions.some(c=>typeof c!=='string'||c.length!==1))return {known:false,price:false,volume:false};
