@@ -1,5 +1,9 @@
 # Signal Foundry
 
+[Sourced research and recorded-policy comparison](docs/SOURCED-RESEARCH.md) add immutable Alpaca-news evidence, a typed thesis, one opposing-case review and a read-only dashboard panel under Research. New research is shadow-only; existing strategy decisions and risk limits remain authoritative. `research:export` exports durable decisions and costs; `research:compare` compares rules, recorded Jev, context, and context plus critic on the same executable-price tape. No profitable edge is established.
+
+Version 1.18.1 repairs [crypto quote timing](docs/CRYPTO-QUOTE-WAITS.md). Signals can wait for a fresh quote within their original deadline, then repeat every entry check. Live shows waiting, expiry, spread and cost counts. Fees and risk limits are unchanged.
+
 Version 1.16 puts trade returns and account/agent P/L in **Live** as well as Performance. **Ledger** is the default light theme and **Copper** is the dark theme, selected through the header Light/Dark buttons. The comparison gallery retains all ten design studies. Filters persist between views. Generate a standalone, fictional-data comparison with `npm run designs -- path/to/dashboard-designs.html`; run the repeatable source audit with `npm run audit`. See the [dashboard guide](docs/dashboard.md) and [cleanup audit](docs/REPO-CLEANUP-1.16.md).
 
 Version 1.15 organizes the dashboard into **Live, Operations, Strategies, Research, Performance and Logs**. Live puts open positions and market activity first; controls have their own view. Trade returns now use clock-aligned **1m / 5m / 15m** summaries, observed high/low ranges, and zoom/pan with a one-minute minimum. Existing section links open the correct tab. See the [dashboard guide and module map](docs/dashboard.md).

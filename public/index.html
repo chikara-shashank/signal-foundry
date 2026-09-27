@@ -282,6 +282,18 @@
               </table>
             </div>
           </section>
+          <section class="panel" id="crypto-signals-panel" hidden>
+            <div class="panel-title"><h2>Crypto signals · 24/7</h2><span class="muted" id="crypto-signal-total"></span></div>
+            <p id="crypto-signal-state" class="muted"></p>
+            <dl class="crypto-signal-counts">
+              <div><dt>Waiting for quote</dt><dd id="crypto-signal-waiting">0</dd></div>
+              <div><dt>Expired</dt><dd id="crypto-signal-expired">0</dd></div>
+              <div><dt>Spread blocked</dt><dd id="crypto-signal-spread">0</dd></div>
+              <div><dt>Cost blocked</dt><dd id="crypto-signal-cost">0</dd></div>
+            </dl>
+            <ul id="crypto-signal-pending"></ul>
+            <p id="crypto-signal-note" class="muted"></p>
+          </section>
           <section class="trade-workspace" aria-label="Trading chart and execution tape" id="market-workspace">
             <article class="panel chart-panel">
               <div class="chart-heading">
@@ -346,6 +358,7 @@
                 <span class="negative">▼ Sell fill</span>
                 <span class="chart-blue">● Approved signal</span>
                 <span class="chart-purple">● Rejected signal</span>
+                <span class="chart-amber">● Pending signal</span>
                 <span id="chart-summary" class="muted">Waiting for candles</span>
               </div>
               <p id="push-state" class="chart-note positive" role="status">Connecting live prices</p>

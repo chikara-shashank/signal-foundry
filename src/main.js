@@ -62,6 +62,7 @@ const background = new Set();
 const launch = promise => { background.add(promise); void promise.then(()=>background.delete(promise),()=>background.delete(promise)); };
 const shutdown = async () => {
   if (quitting) return; quitting = true; engine.stopped = true;
+  engine.cryptoQuoteWaits.cancel('engine_stopped');
   for (const f of feeds) f.stop();
   server?.closeStreams?.(); server?.close(); clearInterval(watchdog); clearTimeout(engine.streamReconcile);
   const forced = setTimeout(() => process.exit(1), 10000); forced.unref();
@@ -128,6 +129,7 @@ try {
     if(engine.universe)launch(engine.universe.poll());
     if(engine.cryptoUniverse)launch(engine.cryptoUniverse.poll());
     if(engine.desk)launch(engine.desk.poll());
+    launch(engine.researchContext.poll());
     if (cfg.heartbeatUrl && Date.now() - lastHeartbeat > 60000 && engine.healthyForHeartbeat()) {
       lastHeartbeat = Date.now();
       // An external dead-man monitor must alert when these success pings stop.

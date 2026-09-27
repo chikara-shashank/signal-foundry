@@ -546,3 +546,4 @@ button:focus-visible,select:focus-visible,input:focus-visible {
     width:100%;
   }
 }
+.chart-amber { color:var(--amber); }

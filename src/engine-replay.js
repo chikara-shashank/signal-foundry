@@ -8,6 +8,8 @@ import { hash, nyDate, isCrypto, terminal, floorStep } from './util.js';
 import { RELEASE } from './release.js';
 import { buildReport } from './research-report.js';
 import { supportsAdditions } from './pyramiding.js';
+import { RecordedResearch } from './recorded-research.js';
+import { WORKER_STRATEGIES } from './strategy-registry.js';
 
 export class ReplayBroker extends SimBroker {
   constructor(cfg,store,calendar,now,{latencyMs=1000,participation=.1}={}) {
@@ -46,10 +48,13 @@ export async function replayEngine(tape,calendar,settings={},execution={}) {
   if(events.some((e,i)=>!Number.isFinite(e.now)||(i&&e.now<events[i-1].now)||nyDate(e.now)<calendar.coverageFrom||nyDate(e.now)>calendar.coverageTo||!['quote','bar','heartbeat'].includes(e.kind)))throw new Error('Invalid, unordered or uncovered replay events');
   const symbols=[...new Set(events.filter(e=>e.symbol).map(e=>e.symbol))];
   if(symbols.some(isCrypto))throw new Error('Equity parity replay requires a separate provider-5m crypto context tape');
-  const cfg=config({...settings,MODE:'shadow',JEV_MODE:'off',ALPACA_KEY:'offline',ALPACA_SECRET:'offline',DASHBOARD_TOKEN:'offline-replay-00000000000000000000000000',EQUITY_SYMBOLS:symbols.join(','),CRYPTO_SYMBOLS:''});
+  const cfg=config({...settings,MODE:'shadow',JEV_MODE:'off',RESEARCH_CONTEXT_MODE:'off',ALPACA_KEY:'offline',ALPACA_SECRET:'offline',DASHBOARD_TOKEN:'offline-replay-00000000000000000000000000',EQUITY_SYMBOLS:symbols.join(','),CRYPTO_SYMBOLS:''});
+  if(execution.review&&cfg.strategies.some(s=>!WORKER_STRATEGIES.includes(s)))throw new Error('Recorded review comparison currently supports equity worker strategies only');
   let now=events[0].now;const store=new Store(),broker=new ReplayBroker(cfg,store,calendar,()=>now,execution);
   const workers={status:()=>cfg.strategies.map(strategy=>({strategy,alive:true})),evaluate:async(f,t,selected)=>selected.map(s=>evaluate(s,f,t)).filter(Boolean)};
   const engine=new Engine(cfg,store,broker,workers,()=>now);engine.scheduleReconcile=()=>{};
+  const reviews=execution.review?new RecordedResearch(engine,execution.review.bundle,execution.review.policy):null;
+  if(reviews)engine.processWorkerCandidate=c=>reviews.submit(c);
   const seen=[];
   if(cfg.strategies.includes('noise_area'))engine.noiseArea=new NoiseArea(engine,broker,{bars:async(symbols,from,to,timeframe='1Min')=>new Map(symbols.map(symbol=>{
     const rows=seen.filter(b=>b.symbol===symbol&&b.ts>=from&&b.ts<to&&b.ts+60000<=now);
@@ -67,10 +72,12 @@ export async function replayEngine(tape,calendar,settings={},execution={}) {
       now=event.now;await engine.reconcile();
       if(event.kind==='quote'){if(event.ts>now)throw new Error('Future quote in replay');await engine.onQuote(event);await engine.mutex.tail;}
       else if(event.kind==='bar'){if(event.ts+60000>now)throw new Error('Unfinished bar in replay');seen.push(event);await engine.onBar(event,event.warmup===true);}
+      await reviews?.advance(now);
       await engine.noiseArea?.tick(now);await engine.reconcile();
     }
     const report=buildReport(store,cfg);
-    return {...report,replay:{source:tape.source,events:events.length,inputSha256:hash(tape),calendarSha256:hash(calendar),sourceSha256:RELEASE.sourceSha256,execution:{latencyMs:broker.latencyMs,participation:broker.participation,addToWinners:execution.addToWinners ?? []},sharedPortfolio:true,calendarAware:true,liveEligible:false,
-      limitations:['Uses production signal, risk, ownership and exit coordination, with a simulated broker.', 'Displayed share size is a fill cap, not queue priority; repeated snapshots may overstate replenishment. Native bracket races and market impact require paper execution calibration.', 'Jev is off. Crypto provider context and options execution are excluded. Open exposure and unfilled orders remain unresolved at tape end.']},orders:store.orders(),finalState:engine.status()};
+    const review=reviews?.report(events[0].now,now)??null;
+    return {...report,review,netAfterRecordedModelCosts:report.estimatedNetPnl===null?null:report.estimatedNetPnl-(review?.totalCostUsd??0),replay:{source:tape.source,events:events.length,inputSha256:hash(tape),calendarSha256:hash(calendar),sourceSha256:RELEASE.sourceSha256,execution:{latencyMs:broker.latencyMs,participation:broker.participation,addToWinners:execution.addToWinners ?? []},sharedPortfolio:true,calendarAware:true,liveEligible:false,
+      limitations:['Uses production signal, risk, ownership and exit coordination, with a simulated broker.', 'Displayed share size is a fill cap, not queue priority; repeated snapshots may overstate replenishment. Native bracket races and market impact require paper execution calibration.', reviews?'Recorded answers only; missing coverage rejects candidates. No fresh inference or inferred historical news.':'Jev is off.', 'Crypto provider context and options execution are excluded. Open exposure and unfilled orders remain unresolved at tape end.']},orders:store.orders(),finalState:engine.status()};
   }finally{engine.stopped=true;clearTimeout(engine.streamReconcile);await engine.mutex.tail;store.close();}
 }

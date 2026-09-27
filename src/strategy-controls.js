@@ -70,6 +70,7 @@ export class StrategyControls {
           e.store.event('strategy_settings_changed', { strategy: request.strategy, previousEnabled: previous.enabled, enabled, previousAddToWinners:previous.addToWinners,addToWinners, revision: next.revision }, now);
         });
         this.state = next;
+        e.cryptoQuoteWaits.cancel('strategy_selection_changed', c => c.strategy === request.strategy);
         e.realtime.eventVersion++;
         for (const order of e.pending().filter(o => o.kind === 'entry' && o.strategy === request.strategy && o.entryDisableRequested && !terminal(o.status) && !uncertain(o.status) && o.filledQty < o.qty)) await e.cancel(order);
       }

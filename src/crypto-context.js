@@ -33,7 +33,7 @@ export class CryptoContext {
       }
       if (token) throw new Error('crypto_history_incomplete');
       const initial = this.lastBucket === null;
-      for (const [symbol, rows] of bars) await e.onCryptoHistory(symbol, rows, initial);
+      await Promise.all([...bars].map(([symbol, rows]) => e.onCryptoHistory(symbol, rows, initial)));
       this.lastBucket = end;
       e.cryptoContextStatus = { state: 'ready', observedAt: e.clock(), intervalMs: 300000, nextAt: end + 302000 };
     } catch (error) {

@@ -411,3 +411,8 @@ footer {
     flex-wrap:wrap;
   }
 }
+:root .crypto-signal-counts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; margin:20px 0; }
+.crypto-signal-counts dt { font-size:12px; color:var(--muted); }
+.crypto-signal-counts dd { margin:6px 0 0; font-size:26px; font-variant-numeric:tabular-nums; }
+#crypto-signal-pending:empty { display:none; }
+@media (max-width:600px) { :root .crypto-signal-counts { grid-template-columns:repeat(2,minmax(0,1fr)); } }

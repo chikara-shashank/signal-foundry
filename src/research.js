@@ -67,7 +67,7 @@ export function tradeScorecard(orders, cfg, filter = {}) {
 // per symbol prevents a 250ms scanner from reporting thousands of independent bets.
 export class SignalOutcomes {
   pending = new Map();
-  constructor(engine) { this.engine = engine; }
+  constructor(engine) { this.engine = engine; this.pending = new Map(engine.store.get('pendingSignalOutcomes',[])); }
   start(c) {
     if (!c.preflight?.ok || !c.model?.requested || !Number.isFinite(c.model.quality) || this.pending.has(c.symbol)) return;
     const e = this.engine, now = e.clock();
@@ -75,12 +75,16 @@ export class SignalOutcomes {
       modelPass: c.model.pass, modelQuality: c.model.quality, fingerprint: e.cfg.fingerprint,
       feeBps: isCrypto(c.symbol) ? e.cfg.cryptoFee : e.cfg.equityFee, slippageBps: e.cfg.slippage,
       delayMs: 1000, horizonMs: isCrypto(c.symbol) ? 900000 : 180000, entry: null });
+    this.engine.store.set('pendingSignalOutcomes',[...this.pending]);
   }
   quote(q, now) {
     const p = this.pending.get(q.symbol); if (!p) return;
     const entryAt = p.ts + p.delayMs, exitAt = entryAt + p.horizonMs;
     if (!validateQuote(q, now, this.engine.cfg.maxQuoteAge)) return;
-    if (!p.entry && q.ts >= entryAt && q.ts <= entryAt + 5000) p.entry = q.ask * (1 + p.slippageBps / 10000);
+    if (!p.entry && q.ts >= entryAt && q.ts <= entryAt + 5000) {
+      p.entry = q.ask * (1 + p.slippageBps / 10000);
+      this.engine.store.set('pendingSignalOutcomes',[...this.pending]);
+    }
     if (!p.entry && now > entryAt + 5000 || now > exitAt + 5000) return this.finish(p, null, 'missing_quote');
     if (p.entry && q.ts >= exitAt && q.ts <= exitAt + 5000) {
       const exit = q.bid * (1 - p.slippageBps / 10000);
@@ -90,7 +94,11 @@ export class SignalOutcomes {
   }
   sweep(now) { for (const p of this.pending.values()) if (now > p.ts + p.delayMs + (p.entry ? p.horizonMs : 0) + 5000) this.finish(p, null, 'missing_quote'); }
   finish(p, netBps, state) {
-    this.engine.store.event('signal_outcome', { ...p, state, netBps, hypothetical: true }, this.engine.clock()); this.pending.delete(p.symbol);
+    this.pending.delete(p.symbol);
+    this.engine.store.transaction(()=>{
+      this.engine.store.event('signal_outcome', { ...p, state, netBps, hypothetical: true }, this.engine.clock());
+      this.engine.store.set('pendingSignalOutcomes',[...this.pending]);
+    });
   }
   summary() {
     const rows = this.engine.store.eventsOfType('signal_outcome', this.engine.clock() - 7 * 86400000, 5000), groups = new Map();
@@ -100,6 +108,6 @@ export class SignalOutcomes {
       const g = groups.get(key); if (r.state === 'observed') { g.count++; g.totalNetBps += r.netBps; } else g.missing++;
     }
     return { pending: this.pending.size, rows: [...groups.values()].map(g => ({ ...g, meanNetBps: g.count ? g.totalNetBps/g.count : null })),
-      note: 'Forward quote markouts after a 1s entry delay: 3m equities / 15m crypto, ask-to-bid with fees and slippage. One overlapping sample per symbol; missing quotes excluded. These are hypothetical observations, not executable returns or a causal test of Jev. Pending observations are lost on restart; last 7 days, at most 5,000 records.' };
+      note: 'Forward quote markouts after a 1s entry delay: 3m equities / 15m crypto, ask-to-bid with fees and slippage. One overlapping sample per symbol; missing quotes excluded. These are hypothetical observations, not executable returns or a causal test of Jev. Pending observations survive restart; missed windows become missing quotes. Last 7 days, at most 5,000 records.' };
   }
 }

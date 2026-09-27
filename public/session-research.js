@@ -1,4 +1,5 @@
 import { escape as esc } from './dashboard-format.js';
+import { researchContextHtml } from './research-context-view.js';
 const label=x=>String(x??'unavailable').replaceAll('_',' ');
 const money=x=>Number.isFinite(x)?x.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}):'—';
 const pct=x=>Number.isFinite(x)?(x*100).toFixed(1)+'%':'—';
@@ -17,7 +18,7 @@ export class SessionResearchView {
     try {const data=await this.api('/api/session-research');if(sequence===this.sequence)this.render(data);}
     catch {if(sequence===this.sequence)this.disconnect();}
   }
-  render({mode,schedule:s,crypto:c,desk:d,now}) {
+  render({mode,schedule:s,crypto:c,desk:d,now,researchContext}) {
     this.section.querySelector('[data-session-state]').textContent=s?label(s.phase).toUpperCase():'SIMULATION';
     this.section.querySelector('[data-session-message]').textContent=s?s.note:'Provider scheduling, market-cap ranking and company-news research run in paper/shadow mode. This demo uses synthetic prices.';
     if(!s){this.section.querySelector('[data-session-content]').replaceChildren();return;}
@@ -32,6 +33,7 @@ export class SessionResearchView {
       <div class="panel-title"><h3>Closing patterns &amp; company news</h3><span>${d?.scanning?'Research running':'Research idle'}</span></div>
       <p class="muted">${esc(coverage)} · news checked ${esc(time(d?.newsAt))} · ${Number(d?.articleCount??0)} articles retained. Jev ${d?.model?.configured?'configured':'not configured'} · ${Number(d?.model?.callsToday??0)} / ${Number(d?.model?.dailyLimit??24)} news calls today. Closing scan ${esc(time(d?.scanAt))}${d?.scanProgress?` · ${Number(d.scanProgress.scanned)} / ${Number(d.scanProgress.total)} eligible stocks`:''}.</p>
       <div class="table-wrap" tabindex="0" role="region" aria-label="Next-session research watchlist"><table><thead><tr><th>STOCK / SESSION</th><th>PLAN</th><th>CLOSING EVIDENCE</th><th>NEWS VIEW</th><th>SOURCE / REQUIREMENT</th></tr></thead><tbody>${rows.length?rows.map(r=>`<tr><td><strong>${esc(r.symbol)}</strong><br><small>${esc(r.targetSession)}</small></td><td class="${r.plan==='avoid'?'negative':''}">${esc(r.stale?'expired':label(r.plan))}</td><td>${r.pattern?`${pct(r.pattern.change)} final-hour move<br>${Number(r.pattern.relativeVolume).toFixed(2)}× participation · ${pct(r.pattern.location)} of range`:'No confirmed pattern'}</td><td>${r.news&&!r.news.reason?`${esc(label(r.news.direction))} · ${pct(r.news.confidence)} model confidence<br>${esc(label(r.news.hazard))}`:'No current classification'}</td><td>${r.articles?.length?link(r.articles[0])+'<br>':''}<small>${esc(r.reason)}</small></td></tr>`).join(''):'<tr><td colspan="5" class="empty">No research candidates yet. A complete scan and fresh news are required; no trade is forced.</td></tr>'}</tbody></table></div>
+      ${researchContextHtml(researchContext)}
       <details><summary>Global top 25 and execution eligibility</summary><div class="session-coins">${ranks.map(r=>`<span class="${r.eligible?'':'muted'}">#${Number(r.rank)} <strong>${esc(r.symbol)}</strong> · ${r.eligible?'eligible':esc(label(r.reason))}</span>`).join('')||'<p>No verified ranking snapshot.</p>'}</div></details>
       <p class="muted">${esc(d?.note??'News and closing research unavailable.')} Top watchlist candidates receive stream priority on the next session. Watchlist membership alone never places an order. Existing intraday trades retain their exits. <a href="#strategy-controls-panel">Control “Closing strength + news” below.</a></p>`;
   }

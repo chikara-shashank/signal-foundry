@@ -1,6 +1,6 @@
 {
   "name": "signal-foundry",
-  "version": "1.18.0",
+  "version": "1.18.1",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24.13.0 <25" },
@@ -12,6 +12,8 @@
     "designs": "node scripts/design-gallery.js",
     "replay": "node scripts/replay.js",
     "replay:engine": "node scripts/engine-replay.js",
+    "research:export": "node scripts/research-export.js",
+    "research:compare": "node scripts/research-compare.js",
     "replay:pyramiding": "node scripts/pyramiding-replay.js",
     "recovery": "node scripts/recovery.js",
     "release": "node scripts/release.js",

@@ -13,6 +13,8 @@ import { QUOTE_STRATEGIES } from './strategy-registry.js';
 import { updateIncidents, protectionHealth } from './execution-incidents.js';
 import { strategyManifest, qualification } from './strategy-manifest.js';
 import { Accounting } from './accounting.js';
+import { CryptoQuoteWaits } from './crypto-quote-waits.js';
+import { ResearchContext } from './research-context.js';
 import { RELEASE } from './release.js';
 import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
 import { additionPolicy, additionCandidate, checkAddition, observeCampaign } from './pyramiding.js';
@@ -42,6 +44,7 @@ export class Engine {
     this.exitTriggers = store.get('exitTriggers', {});
     this.feeds = {}; this.startedAt = Date.now();
     this.observability = new Observability(this);
+    this.cryptoQuoteWaits = new CryptoQuoteWaits(this);
     this.realtime = new Realtime(this);
     this.workers.onEvaluation = report => { this.realtime.timings.strategy.add(report.latencyMs); this.observability.evaluation(report); };
     this.dailyLossLimit = store.get('dailyLossOverride', cfg.dailyLoss);
@@ -50,6 +53,7 @@ export class Engine {
     this.outcomes = new SignalOutcomes(this);
     this.strategyControls = new StrategyControls(this);
     this.accounting = new Accounting(this);
+    this.researchContext = new ResearchContext(this);
   }
   async init() {
     this.store.lease(Date.now());
@@ -63,6 +67,11 @@ export class Engine {
     }
     this.store.transaction(()=>{this.store.set('managed',this.managed);this.store.set('exitTriggers',{});});this.exitTriggers={};
     this.store.set('identity', identity);
+    // A restart never revives a queued signal from the previous process.
+    for (const c of this.store.candidatesByStatus('waiting_for_quote')) {
+      c.status = 'rejected'; c.reason = 'crypto_wait_interrupted'; this.store.updateCandidate(c);
+      this.store.event('candidate_rejected', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, reason: c.reason }, this.clock());
+    }
     this.store.set('strategySettings', this.strategyControls.state);
     this.store.recoverModelTraces(this.clock());
     if (this.store.get('cashAnchor') === null) this.store.set('cashAnchor', a.cash - this.cashFlow(this.store.orders()));
@@ -93,6 +102,7 @@ export class Engine {
     const priorQuote = this.quotes.get(q.symbol);
     if (priorQuote && quoteOrder(q) < quoteOrder(priorQuote)) return;
     this.quotes.set(q.symbol, q);
+    this.cryptoQuoteWaits.onQuote(q.symbol);
     this.outcomes.quote(q, this.clock());
     const owned = this.managed[q.symbol];
     if (owned && !this.externalSymbols.has(q.symbol)) {
@@ -247,35 +257,66 @@ export class Engine {
       const candidates = await this.workers.evaluate(f, now, selected);
       if(this.stopped)return;
       const workerLatencyMs = performance.now() - started;
+      const decisions = [];
       for (const c of candidates) {
         c.workerLatencyMs = workerLatencyMs;
         c.strategyGeneration = generations.get(c.strategy) ?? -1;
         c.config = this.cfg.fingerprint;
+        c.research = this.researchContext.reference(c.symbol, c.ts);
         if (!this.store.candidate(c)) continue;
         this.observability.counts.candidates++;
+        if (isCrypto(c.symbol)) this.observability.crypto.detected++;
         this.store.event('candidate_detected', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, price: c.reference }, now);
-        const preflight = await this.mutex.run(() => this.checkEntry(c));
-        c.preflight = preflight;
+        // A waiting crypto setup must not hold up other strategies or symbols.
+        if (this.cryptoQuoteWaits.eligible(c)) decisions.push(this.processWorkerCandidate(c));
+        else await this.processWorkerCandidate(c);
+      }
+      const completed = await Promise.allSettled(decisions);
+      const failed = completed.find(r => r.status === 'rejected');
+      if (failed) throw failed.reason;
+    } catch { if(!this.stopped)this.fail('strategy_worker_failure'); }
+    finally { this.pendingCandidates--; }
+  }
+  async processWorkerCandidate(c) {
+    const canWait = this.cryptoQuoteWaits.eligible(c);
+    let outcomeStarted = false;
+    while (!this.stopped) {
+      let preflight = await this.mutex.run(() => this.checkEntry(c));
+      if (canWait && preflight.reason === 'stale_or_invalid_quote') {
+        const reason = await this.cryptoQuoteWaits.wait(c);
+        if (!reason) continue; // A quote is an observation; recheck every gate.
+        preflight = { ok: false, reason };
+      }
+      if (this.stopped) break;
+      c.preflight = preflight;
+      if (!c.model) {
         c.model = await this.jev.evaluate(c, this.clock(), preflight.ok ? null : preflight.reason);
-        if(this.stopped)return;
-        this.outcomes.start(c);
+        if (this.stopped) break;
         if (c.model.requested) this.realtime.timings.jev.add(c.model.latencyMs);
         this.store.event('model_result', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, mode: this.cfg.jevMode,
           requested: c.model.requested === true, pass: c.model.pass, error: c.model.error ?? null, coherence: c.model.coherence ?? null,
           quality: c.model.quality ?? null, regime: c.model.regime ?? null, latencyMs: c.model.latencyMs ?? null, cost: c.model.cost ?? null }, this.clock());
         this.realtime.eventVersion++;
-        if (!preflight.ok) { this.reject(c, preflight.reason); continue; }
-        if (this.cfg.jevMode === 'filter' && !c.model.pass) { this.reject(c, c.model.error ?? 'model_filter'); continue; }
-        await this.mutex.run(() => this.enter(c));
       }
-    } catch { if(!this.stopped)this.fail('strategy_worker_failure'); }
-    finally { this.pendingCandidates--; }
+      if (!outcomeStarted) { this.outcomes.start(c); outcomeStarted = true; }
+      if (!preflight.ok) return this.reject(c, preflight.reason);
+      if (this.cfg.jevMode === 'filter' && !c.model.pass) return this.reject(c, c.model.error ?? 'model_filter');
+      const waitAgain = await this.mutex.run(async () => {
+        // A quote can age during model evaluation or while waiting for the
+        // account mutex. Reuse this candidate's model result, never its approval.
+        if (canWait && this.checkEntry(c).reason === 'stale_or_invalid_quote') return true;
+        await this.enter(c); return false;
+      });
+      if (!waitAgain) return;
+    }
+    this.reject(c, 'engine_stopped');
   }
   // Engine-thread session strategies share every entry check with the bar strategies.
   // Jev is not consulted: its rubric defines no setup for them.
   async submitCandidate(c) {
     c.strategyGeneration ??= this.strategyControls.generation(c.strategy);
     c.config = this.cfg.fingerprint;
+    c.research = this.researchContext.reference(c.symbol, c.ts);
     if (!this.store.candidate(c)) return;
     this.observability.counts.candidates++;
     this.store.event('candidate_detected', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, price: c.reference }, this.clock());
@@ -343,9 +384,11 @@ export class Engine {
       ...(c.addition ? {campaignId:c.campaignId,addition:true} : {addPolicy:isCrypto(c.symbol)?null:additionPolicy(this,c.strategy)}),
       exitPolicy: breakoutPolicy(c, this.cfg), discovery: isCrypto(c.symbol)?{source:'CoinPaprika',at:this.cryptoUniverse?.state.at??null,row:this.cryptoUniverse?.state.rows.find(r=>r.symbol===c.symbol)??null}:this.universe?.selection(c.symbol) ?? null,
       ...(c.holdingPolicy?{holdingPolicy:structuredClone(c.holdingPolicy)}:{}),
+      ...(c.research?{research:structuredClone(c.research)}:{}),
       status: 'reserved', ts: now, ...decision, entryDeadline: Math.min(c.expires, now + this.cfg.entryTtl), timeInForce: isCrypto(c.symbol) ? 'ioc' : c.holdingPolicy?.type==='carry'?'gtc':'day', feeRateBps: isCrypto(c.symbol) ? this.cfg.cryptoFee : this.cfg.equityFee, maxHold: c.maxHold ?? this.cfg.maxHold, legs: [], filledQty: 0, fillPrice: 0 };
     this.store.order(o);
     this.observability.counts.riskApproved++;
+    if (isCrypto(c.symbol) && c.strategy !== 'operator_paper_test') this.observability.crypto.approved++;
     c.status = 'approved'; c.orderId = o.id; c.allocation = decision; this.store.updateCandidate(c);
     this.lastEntry[c.symbol] = now; this.store.set('lastEntry', this.lastEntry);
     await this.submit(o);
@@ -629,6 +672,7 @@ export class Engine {
         }
       } else throw new Error('Unknown action');
       this.store.set('operatorPause', this.operatorPause); this.store.event('control', { action }, this.clock());
+      if (this.operatorPause) this.cryptoQuoteWaits.cancel('entries_paused');
     });
   }
   async updateRiskSettings(request) {
@@ -687,7 +731,7 @@ export class Engine {
     const now = this.clock();
     const clockBlocked = this.timebase && !this.timebase.status().synchronized;
     const assetReadiness=this.entryAvailability(), eligible=assetReadiness.equity.ready||assetReadiness.crypto.ready;
-    return { version: RELEASE.version, release:RELEASE, backup:this.store.get('backupStatus'), cryptoContext: this.cryptoContextStatus, brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
+    return { version: RELEASE.version, release:RELEASE, backup:this.store.get('backupStatus'), cryptoContext: this.cryptoContextStatus, cryptoSignals: this.cryptoQuoteWaits.snapshot(), brokerBudget: this.broker.budgetStatus?.() ?? null, timings: this.realtime.summary(), mode: this.cfg.mode, accountPolicy: this.cfg.accountPolicy, portfolio: this.portfolio.state, now, startedAt: this.startedAt, ready: this.ready && !clockBlocked, paused: this.operatorPause,
       issues: [...new Set([...this.issues, ...(clockBlocked ? ['clock_not_synchronized'] : [])])],
       diagnostics: marketDiagnostics(this), protection: protectionHealth(this), noiseReservation: this.noiseReservation(),
       entryReady: this.ready && !clockBlocked && eligible && !this.operatorPause && (this.broker.entryBudgetAvailable?.() ?? true), assetReadiness,

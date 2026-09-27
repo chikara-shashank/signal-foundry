@@ -50,6 +50,14 @@ export function config(env = process.env) {
     sessions: num('OVERNIGHT_MAX_SESSIONS', 3, 1, 10) };
   if (!['on','off'].includes(str('OVERNIGHT_ENTRIES', ['paper','shadow'].includes(c.mode) ? 'on' : 'off')) || !Number.isInteger(c.overnight.sessions)) throw new Error('Invalid overnight policy');
   c.desk = { enabled:c.mode!=='demo', newsPollMs:900000, maxModelCallsPerDay:24, closeScanDelayMs:120000 };
+  c.researchContext = {
+    mode: str('RESEARCH_CONTEXT_MODE', ['paper','shadow'].includes(c.mode) ? 'shadow' : 'off'),
+    maxCallsPerDay: num('RESEARCH_CONTEXT_DAILY_CALLS', 8, 0, 24),
+    ttlMs: num('RESEARCH_CONTEXT_TTL_MINUTES', 60, 5, 240) * 60000,
+    maxSymbols: num('RESEARCH_CONTEXT_SYMBOLS', 4, 1, 10),
+  };
+  if (!['off','shadow'].includes(c.researchContext.mode) || !Number.isInteger(c.researchContext.maxCallsPerDay) || !Number.isInteger(c.researchContext.maxSymbols)) throw new Error('Invalid research context policy');
+  if (['demo','live'].includes(c.mode) && c.researchContext.mode !== 'off') throw new Error('Research context requires paper/shadow mode');
   c.universe = { mode: str('EQUITY_UNIVERSE', c.mode === 'demo' ? 'static' : 'all'),
     refreshMs: num('UNIVERSE_REFRESH_SECONDS', 300, 120, 3600) * 1000,
     streamLimit: num('UNIVERSE_STREAM_LIMIT', c.feed === 'iex' ? 30 : 60, 1, c.feed === 'iex' ? 30 : 200),

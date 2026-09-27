@@ -10,9 +10,9 @@ import { jevTracePage, jevTraceDetail } from './jev-traces.js';
 // Explicit public asset registry: private source, journals and .env are never served.
 const scripts = [
   'app', 'chart', 'live', 'operations', 'jev-log', 'strategy-controls', 'options-lab',
-  'discovery', 'session-research', 'trade-performance', 'dashboard-format',
+  'discovery', 'session-research', 'research-context-view', 'trade-performance', 'dashboard-format',
   'dashboard-tabs', 'dashboard-controls', 'dashboard-status', 'account-performance', 'research-results',
-  'return-format', 'return-timeline', 'trade-return-chart',
+  'return-format', 'return-timeline', 'trade-return-chart', 'crypto-signals',
   'design-catalog', 'dashboard-design', 'performance-panels', 'chart-palette',
 ];
 const styles = ['style', 'chart', 'operations', 'strategy-controls', 'trade-performance', 'session-research', 'dashboard-tabs', 'dashboard-designs'];
@@ -46,7 +46,8 @@ export function createDashboard(engine, cfg) {
         return stream.open(req, res, symbol, interval);
       }
       if (path === '/api/status' && req.method === 'GET') return json(200, engine.status());
-      if (path === '/api/session-research' && req.method === 'GET') return json(200,{now:engine.clock(),mode:cfg.mode,schedule:engine.schedule?.state()??null,crypto:engine.cryptoUniverse?.status()??{mode:cfg.cryptoUniverse},desk:engine.desk?.snapshot()??null});
+      if (path === '/api/session-research' && req.method === 'GET') return json(200,{now:engine.clock(),mode:cfg.mode,schedule:engine.schedule?.state()??null,crypto:engine.cryptoUniverse?.status()??{mode:cfg.cryptoUniverse},desk:engine.desk?.snapshot()??null,researchContext:engine.researchContext.snapshot()});
+      if (path === '/api/research-context' && req.method === 'GET') return json(200,engine.researchContext.snapshot());
       if (path === '/api/accounting' && req.method === 'GET') return json(200, engine.accounting.snapshot());
       if (path === '/api/incidents' && req.method === 'GET') return json(200, Object.values(engine.store.get('executionIncidents',{})));
       if (path === '/api/readiness' && req.method === 'GET') { const s=engine.status();return json(s.protection.healthy?200:503,{alive:Date.now()-engine.lastLoop<60000,entryReady:s.entryReady,entryBlockers:s.entryBlockers,protection:s.protection}); }

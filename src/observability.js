@@ -1,6 +1,6 @@
 export const ACTIVITY_TYPES = {
   scans: ['scan_summary', 'quote_rejected', 'crypto_context', 'signal_outcome','universe_scan','universe_scan_failed'],
-  decisions: ['candidate_detected', 'candidate_rejected'],
+  decisions: ['candidate_detected', 'candidate_waiting', 'candidate_rejected'],
   jev: ['model_result'],
   orders: ['order_submitting', 'order', 'fill', 'cancel_pending', 'broker_update', 'exit_trigger'],
   controls: ['started', 'shutdown', 'control', 'risk_settings_changed', 'strategy_settings_changed', 'account_policy_changed', 'execution_incident','execution_incident_cleared','backup_failed','options_experiment_archived','fault'],
@@ -16,6 +16,9 @@ export const friendlyReason = reason => ({
   superseded_snapshot: 'Newer market information replaced this setup', stale_quote: 'The latest quote is too old', daily_loss_limit: 'Daily loss halt is active',
   broker_orders_present: 'The broker already has an order for this instrument', unresolved_order: 'Waiting to resolve an uncertain order outcome',
   operator_pause: 'Operator paused new entries', no_setup: 'Strategy conditions were not met',
+  waiting_for_fresh_quote: 'Signal is waiting for a fresh quote within its original deadline',
+  candidate_expired: 'The signal deadline passed before entry approval',
+  crypto_wait_interrupted: 'Restart discarded the pending signal; waiting for a new setup',
   strategy_disabled: 'This strategy is switched off for new entries', strategy_selection_changed: 'Strategy selection changed while this setup was being evaluated',
   external_orders_pending: 'External orders are still open; waiting for their cash and position effects',
   managed_position_conflict: 'An agent position does not match its recorded fills',
@@ -28,6 +31,7 @@ export class Observability {
   constructor(engine) {
     this.engine = engine; this.reports = new Map(); this.lastScanLog = new Map(); this.reasons = new Map(); this.lastQuoteLog = new Map(); this.filledIds = new Set();
     this.counts = { candidates: 0, riskApproved: 0, riskRejected: 0, modelRejected: 0, submissions: 0, filledOrders: 0, quotesAccepted: 0, quotesRejected: 0 };
+    this.crypto = { detected: 0, waited: 0, expired: 0, spreadBlocked: 0, costBlocked: 0, otherBlocked: 0, approved: 0 };
   }
   quote(q, accepted, reason) {
     this.counts[accepted ? 'quotesAccepted' : 'quotesRejected']++;
@@ -55,6 +59,11 @@ export class Observability {
     }
   }
   rejected(c) {
+    if (c.symbol.includes('/') && c.strategy !== 'operator_paper_test') {
+      const key = c.reason === 'candidate_expired' ? 'expired' : c.reason === 'spread_limit' ? 'spreadBlocked'
+        : c.reason === 'reward_does_not_clear_cost_buffer' ? 'costBlocked' : 'otherBlocked';
+      this.crypto[key]++;
+    }
     const model = c.reason === 'model_filter' || c.reason?.startsWith('model_') || c.reason?.startsWith('invalid_model');
     this.counts[model ? 'modelRejected' : 'riskRejected']++;
     this.engine.store.event('candidate_rejected', { candidateId: c.id, symbol: c.symbol, strategy: c.strategy, reason: c.reason,
@@ -77,9 +86,11 @@ export class Observability {
       reason: strategy === 'order_flow_continuation' ? symbol.includes('/') ? 'Crypto uses five-minute bar strategies; equity OFI profile is inactive here' : 'Waiting for sufficient quote-size observations and fresh bar context' : 'Waiting for completed bars and strategy context' });
     const q = e.quotes.get(symbol), fresh = q && now - q.ts <= e.cfg.maxQuoteAge;
     const latest = e.store.candidatesForSymbol(symbol, 0, 1)[0];
+    const waiting = e.cryptoQuoteWaits.snapshot().pending.filter(c => c.symbol === symbol);
     let why = e.timebase && !e.timebase.status().synchronized ? 'Provider clock calibration is not reliable. New entries are blocked until it recovers.'
       : e.operatorPause ? 'New entries are paused by the operator.' : !e.ready ? `Entries are blocked: ${e.issues.map(friendlyReason).join('; ')}.`
       : e.cfg.accountPolicy === 'shared' && e.portfolio.state.reservedSymbols.includes(symbol) ? `${symbol} is reserved by an external holding or related option. Agents can consider other available instruments.`
+      : waiting.length ? `${waiting.length} ${symbol} signal(s) waiting for a fresh quote within their original deadline. All entry checks will run again.`
       : !q ? `${symbol} has no accepted quote yet. A connected feed alone does not establish usable prices.`
       : !fresh ? `${symbol}'s last quote is stale. Waiting for fresh data.`
       : e.managed[symbol] ? `${symbol} already has a managed position. The engine is monitoring its exit conditions.`
@@ -89,7 +100,7 @@ export class Observability {
     return { sessionId: String(e.startedAt), startedAt: e.startedAt, now, symbol, mode: e.cfg.mode,
       counts: { ...this.counts, checks, matchedChecks: workers.reduce((sum, w) => sum + (w.matched ?? 0), 0),
         workerErrors: workers.reduce((sum, w) => sum + (w.errors ?? 0), 0), modelRequests: model.requests },
-      journal: e.store.journalSummary(), workers, reports: report, why,
+      journal: e.store.journalSummary(), workers, reports: report, why, cryptoSignals: e.cryptoQuoteWaits.snapshot(),
       topReasons: [...this.reasons.values()].sort((a, b) => b.count - a.count).slice(0, 5),
       jev: { ...model, busy: e.jev.busy, mode: e.cfg.jevMode, model: e.cfg.jevModel, minCoherence: e.cfg.jevCoherence, minQuality: e.cfg.jevQuality,
         description: e.cfg.jevMode === 'off' ? 'Jev is disabled. The numerical strategies and risk coordinator drive this run.'
@@ -106,7 +117,7 @@ export function activityPage(engine, { after = 0, category = 'all', symbol = '',
   const page = engine.store.activityPage(after, types, symbol, limit);
   const fields = new Set(['symbol', 'strategy', 'reason', 'stage', 'candidateId', 'orderId', 'id', 'kind', 'side', 'status', 'qty', 'addedQty', 'price',
     'blockers', 'passed', 'total', 'note', 'model', 'mode', 'coherence', 'quality', 'regime', 'latencyMs', 'cost', 'requested', 'pass', 'error',
-    'action', 'enabled', 'previousEnabled', 'revision', 'dailyLoss', 'previousDailyLoss', 'providerTs', 'ageMs', 'pending', 'fingerprint', 'bars', 'intervalMs', 'source', 'version', 'quoteTs', 'bid', 'netBps', 'hypothetical', 'state']);
+    'action', 'enabled', 'previousEnabled', 'revision', 'dailyLoss', 'previousDailyLoss', 'providerTs', 'ageMs', 'pending', 'fingerprint', 'bars', 'intervalMs', 'source', 'version', 'quoteTs', 'bid', 'netBps', 'hypothetical', 'state', 'expires']);
   return { ...page, events: page.events.map(event => {
     const data = Object.fromEntries(Object.entries(event.data).filter(([key]) => fields.has(key)));
     if (event.data.failedCheck) data.failedCheck = Object.fromEntries(Object.entries(event.data.failedCheck).filter(([k]) => ['name', 'actual', 'operator', 'target', 'unit', 'pass'].includes(k)));

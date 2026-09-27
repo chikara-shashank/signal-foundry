@@ -17,6 +17,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS orders (id TEXT PRIMARY KEY, symbol TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL, ts INTEGER NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS spending (id TEXT PRIMARY KEY, month TEXT NOT NULL, reserved REAL NOT NULL, actual REAL, ts INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS model_traces (id TEXT PRIMARY KEY, candidate_id TEXT NOT NULL, ts INTEGER NOT NULL, symbol TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS model_reviews (candidate_key TEXT PRIMARY KEY, ts INTEGER NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS broker_activities (id TEXT PRIMARY KEY, ts TEXT NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS trade_marks (campaign TEXT NOT NULL, ts INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY(campaign,ts));
       CREATE INDEX IF NOT EXISTS trade_marks_ts ON trade_marks(ts);
@@ -75,6 +76,7 @@ export class Store {
   candidate(c) { return this.db.prepare('INSERT OR IGNORE INTO candidates VALUES(?,?,?,?,?,?)').run(c.id, c.ts, c.symbol, c.strategy, c.status ?? 'discovered', JSON.stringify(c)).changes > 0; }
   updateCandidate(c) { this.db.prepare('UPDATE candidates SET status=?,data=? WHERE id=?').run(c.status, JSON.stringify(c), c.id); }
   candidates(limit = 100) { return this.db.prepare('SELECT data FROM candidates ORDER BY ts DESC LIMIT ?').all(limit).map(x => JSON.parse(x.data)); }
+  candidatesByStatus(status) { return this.db.prepare('SELECT data FROM candidates WHERE status=?').all(status).map(x => JSON.parse(x.data)); }
   getCandidate(id) { const row = this.db.prepare('SELECT data FROM candidates WHERE id=?').get(id); return row ? JSON.parse(row.data) : null; }
   candidatesForSymbol(symbol, since, limit = 300) { return this.db.prepare('SELECT data FROM candidates WHERE symbol=? AND ts>=? ORDER BY ts DESC LIMIT ?').all(symbol, since, limit).map(x => JSON.parse(x.data)); }
   ordersForSymbol(symbol, limit = 500) { return this.db.prepare('SELECT data FROM orders WHERE symbol=? ORDER BY ts DESC LIMIT ?').all(symbol, limit).map(x => JSON.parse(x.data)); }
@@ -109,6 +111,9 @@ export class Store {
     return this.db.prepare(`SELECT data FROM model_traces ${symbol ? 'WHERE symbol=?' : ''} ORDER BY ts DESC LIMIT ?`).all(...(symbol ? [symbol, limit] : [limit])).map(x => JSON.parse(x.data));
   }
   modelTraceById(id) { const row = this.db.prepare('SELECT data FROM model_traces WHERE id=?').get(id); return row ? JSON.parse(row.data) : null; }
+  recordModelReview(trace) {
+    this.db.prepare('INSERT OR IGNORE INTO model_reviews VALUES(?,?,?)').run(trace.candidateKey,trace.ts,JSON.stringify(trace));
+  }
   recoverModelTraces(now) {
     this.db.prepare("UPDATE model_traces SET data=json_set(data,'$.status','interrupted','$.error','process_interrupted','$.recoveredAt',?) WHERE json_extract(data,'$.status')='inflight'").run(now);
   }

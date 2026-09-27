@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { finite } from './util.js';
 import { JEV_RUBRIC, setupContext, requestWindow } from './jev-context.js';
+import { candidateReviewKey } from './research-evidence.js';
 
 const featureKeys = new Set('symbol version barVersion intervalMs maxHold coverage bar count previous ema9 ema21 previousEma9 atr rangeHigh rangeLow relativeVolume rollingVwap vwapZ efficiency volatilityRatio priorCompression regime trend5 trend15 micro ts open close high low volume observations spanMs imbalance normalizedOfi microprice mid micropriceSkewBps returnBps source'.split(' '));
 export function traceFeatures(value, depth = 0) {
@@ -44,6 +45,7 @@ export class Jev {
   async evaluate(c, now = Date.now(), skipReason = null) {
     const evaluationStarted = performance.now();
     const trace = { id: randomUUID(), candidateId: c.id, ts: now, symbol: c.symbol, strategy: c.strategy, mode: this.cfg.jevMode,
+      candidateKey:candidateReviewKey(c), candidateExpiresAt:c.expires,
       sessionId: this.sessionId, rubricVersion: JEV_RUBRIC,
       model: this.cfg.jevModel, requested: false, status: 'skipped', input: null, output: null,
       thresholds: { coherence: this.cfg.jevCoherence, quality: this.cfg.jevQuality, excludedRegime: 'disorderly' } };
@@ -53,9 +55,11 @@ export class Jev {
         regime: result.regime ?? null, latencyMs: result.latencyMs ?? null, cost: result.cost ?? null };
       if (!requested) this.stats.skipped++;
       Object.assign(trace, { requested, status: requested ? result.error ? 'error' : 'completed' : 'skipped',
+        completedAt:Math.ceil(now+performance.now()-evaluationStarted),
         latencyMs: result.latencyMs ?? null, cost: result.cost ?? null, error: result.error ?? null, pass: result.pass,
         output: result.answers ? { model: result.model, answers: traceAnswers(result.answers), usage: { input_tokens: result.inputTokens } } : null });
       this.store.modelTrace(trace);
+      if(requested)this.store.recordModelReview(trace);
       return { ...result, mode: this.cfg.jevMode, requested, traceId: trace.id };
     };
     if (skipReason) return record({ pass: false, error: `preflight_${skipReason}` }, false);

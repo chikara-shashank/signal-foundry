@@ -58,6 +58,13 @@
 .session-research .negative {
   color:var(--red);
 }
+.research-theses { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr)); gap:16px; margin:16px 0 26px; }
+.research-thesis { border:1px solid var(--line); padding:18px; min-width:0; }
+.research-thesis p,.research-thesis li { font-size:13px; line-height:1.65; }
+.research-thesis dl { display:grid; grid-template-columns:100px 1fr; gap:8px; font-size:12px; }
+.research-thesis dt,.research-thesis small { color:var(--muted); }
+.research-thesis dd { margin:0; }
+.research-thesis li { margin-bottom:12px; overflow-wrap:anywhere; }
 @media(max-width:900px) {
   .session-cards {
     grid-template-columns:1fr;

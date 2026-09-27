@@ -93,7 +93,7 @@ export class TradingChart {
       if (index < 0) { if (m.ts >= maxTime) index = bars.length; else continue; }
       const xx = x(index), yy = y(m.price); if (yy < top || yy > bottom) continue;
       const fill = m.type === 'fill', buy = m.side === 'buy';
-      ctx.fillStyle = fill ? buy ? colors.up : colors.down : m.status === 'approved' ? colors.blue : colors.purple;
+      ctx.fillStyle = fill ? buy ? colors.up : colors.down : m.status === 'approved' ? colors.blue : m.status === 'rejected' ? colors.purple : colors.amber;
       ctx.strokeStyle = colors.bg; ctx.lineWidth = 1.5; ctx.beginPath();
       if (fill) { const sign = buy ? 1 : -1; ctx.moveTo(xx, yy - sign * 7); ctx.lineTo(xx - 5, yy + sign * 4); ctx.lineTo(xx + 5, yy + sign * 4); ctx.closePath(); } else ctx.arc(xx, yy, 3.3, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
