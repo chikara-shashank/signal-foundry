@@ -16,3 +16,9 @@ export async function fixture(overrides = {}) {
     const c = candidate(symbol, now, id); engine.snapshots.set(symbol, c.features); engine.onQuote(quote(symbol, now)); store.candidate(c); return c;
   } };
 }
+// One closed round trip: bought 1 at $100, target leg sold at 100 + net, stop leg canceled.
+export const closedTrade = (i, { strategy = 'range_breakout', symbol = 'SPY', net = 1, code = 'code-a', at = Date.parse('2026-09-22T14:00:00Z') + i * 60000, fee = 0 } = {}) => ({
+  id: `e${i}`, brokerId: `e${i}`, symbol, kind: 'entry', strategy, qty: 1, filledQty: 1, fillPrice: 100, status: 'filled', ts: at, settledAt: at, feeRateBps: fee,
+  experiment: { experimentId: `x-${code}`, codeHash: code },
+  legs: [{ brokerId: `t${i}`, status: 'filled', filledQty: 1, fillPrice: 100 + net, type: 'limit', filledAt: at + 30000 },
+    { brokerId: `s${i}`, status: 'canceled', filledQty: 0, type: 'stop' }] });
