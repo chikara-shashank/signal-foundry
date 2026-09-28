@@ -15,6 +15,7 @@ import { strategyManifest, qualification } from './strategy-manifest.js';
 import { Accounting } from './accounting.js';
 import { CryptoQuoteWaits } from './crypto-quote-waits.js';
 import { ResearchContext } from './research-context.js';
+import { RiskLevels } from './risk-levels.js';
 import { RELEASE } from './release.js';
 import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
 import { additionPolicy, additionCandidate, checkAddition, observeCampaign } from './pyramiding.js';
@@ -52,6 +53,7 @@ export class Engine {
     this.portfolio = new Portfolio(this);
     this.outcomes = new SignalOutcomes(this);
     this.strategyControls = new StrategyControls(this);
+    this.riskLevels = new RiskLevels(this);
     this.accounting = new Accounting(this);
     this.researchContext = new ResearchContext(this);
   }
@@ -364,13 +366,18 @@ export class Engine {
     if (now - (this.lastEntry[c.symbol] ?? 0) < this.cfg.cooldown) return deny('symbol_cooldown');
     if (!paperTest && !SESSION_STRATEGIES.includes(c.strategy) && this.snapshots.get(c.symbol)?.version !== (c.features.barVersion ?? c.features.version)) return deny('superseded_snapshot');
     if (c.strategy === 'order_flow_continuation' && now - c.features.micro.ts > 1000) return deny('microstructure_signal_expired');
-    const riskConfig = { ...this.cfg, strategies: this.strategyControls.enabledIds(), noiseReservationEligible: this.noiseReservation().eligible, ...(paperTest ? { maxPosition: Math.min(this.cfg.maxPosition, isCrypto(c.symbol) ? 25 : c.reference * 1.02) } : {}) };
+    // Evidence-gated sizing (risk-levels.js): exactly the .env limits unless RISK_LEVELS=auto.
+    const levels = this.riskLevels.limits(c.strategy, this.account);
+    const riskConfig = { ...this.cfg, risk: levels.risk, maxPosition: levels.maxPosition, maxGross: levels.maxGross, maxGroup: levels.maxGroup, capital: levels.capital,
+      strategies: this.strategyControls.enabledIds(), noiseReservationEligible: this.noiseReservation().eligible, ...(paperTest ? { maxPosition: Math.min(this.cfg.maxPosition, isCrypto(c.symbol) ? 25 : c.reference * 1.02) } : {}) };
     const carryAllocation=carry?overnightAllocation(this):null;
     if(carry)riskConfig.maxPosition=Math.min(riskConfig.maxPosition,carryAllocation.headroom,carryAllocation.base*this.cfg.overnight.positionFraction);
     const shared = this.cfg.accountPolicy === 'shared';
     const riskAccount = shared ? { ...this.account, cash: Math.min(this.account.cash, this.portfolio.state.cashAvailable) } : this.account;
     const decision = sizeEntry(addition ? {...c,stop:addition.stop,target:addition.target} : c, this.quotes.get(c.symbol), riskAccount, shared ? this.portfolio.positions : this.positions, this.pending(), riskConfig, this.assets.get(c.symbol), now, this.session, addition);
     if(addition && decision.ok)decision.additionPlan=addition;
+    // Journaled on the entry order, so every fill can be traced to the level that sized it.
+    if(decision.ok && this.riskLevels.active)decision.riskLevel={level:levels.level,multiplier:levels.multiplier,brake:levels.brake};
     if(carry&&decision.ok&&decision.reserved>carryAllocation.headroom+1e-8)return deny('carry_allocation_limit');
     return decision;
   }
@@ -556,8 +563,10 @@ export class Engine {
         const day = nyDate(now), baseline = this.store.get(`equity:${day}`);
         if (baseline === null && positive(account.equity)) this.store.set(`equity:${day}`, account.equity);
         this.dailyPnl = account.equity - (baseline ?? account.equity);
-        if (!shared && this.dailyPnl <= -this.dailyLossLimit) this.store.set(`lossHalt:${day}`, true);
+        if (!shared && this.dailyPnl <= -this.effectiveDailyLoss()) this.store.set(`lossHalt:${day}`, true);
         if (this.store.get(this.lossHaltKey(now), false)) this.issues.push('daily_loss_limit');
+        this.riskLevels.tick(now, { unrealized: shared ? book.unrealized : positions.reduce((sum, p) => sum + (Number.isFinite(p.unrealized) ? p.unrealized : 0), 0) });
+        if (this.riskLevels.halted()) this.issues.push('drawdown_brake');
         this.ready = this.issues.length === 0;
         this.accounting.observeDay(now);
         this.desk?.enforceAllocation(now);
@@ -659,6 +668,7 @@ export class Engine {
       this.store.assertLease();
       if (action === 'pause') this.operatorPause = true;
       else if (action === 'resume') this.operatorPause = false;
+      else if (action === 'reset_drawdown_brake') { this.riskLevels.reset(this.clock()); this.scheduleReconcile(); }
       else if (action === 'cancel_entries') {
         this.operatorPause = true;
         for (const o of this.pending().filter(o => o.kind === 'entry' && !terminal(o.status) && !uncertain(o.status))) await this.cancel(o);
@@ -700,6 +710,8 @@ export class Engine {
     });
   }
   lossHaltKey(now) { return `${this.cfg.accountPolicy === 'shared' ? 'agentLossHalt' : 'lossHalt'}:${nyDate(now)}`; }
+  // The saved ceiling is the Level 1 value; it scales with the highest risk level in use.
+  effectiveDailyLoss() { return this.dailyLossLimit * this.riskLevels.portfolioMultiplier(); }
   noiseReservation() {
     let reason = null;
     if (!this.strategyControls.enabled('noise_area')) reason = 'strategy_disabled';
@@ -748,7 +760,9 @@ export class Engine {
       microstructure: this.cfg.symbols.map(symbol => ({ symbol, ...this.microstructure.snapshot(symbol, now) })),
       jev: { mode: this.cfg.jevMode, model: this.cfg.jevModel, spent: this.store.spend(new Date(now).toISOString().slice(0, 7)), budget: this.cfg.jevBudget },
       limits: { scope: this.cfg.accountPolicy === 'shared' ? 'agent' : 'account', capital: this.cfg.capital, maxGross: this.cfg.maxGross, maxPosition: this.cfg.maxPosition, maxPositions: this.cfg.maxPositions === 0 ? null : this.cfg.maxPositions, dailyLoss: this.dailyLossLimit,
-        dailyLossDefault: this.cfg.dailyLoss, dailyLossOverride: this.store.get('dailyLossOverride') !== null, dailyLossHalted: this.store.get(this.lossHaltKey(now), false) },
+        dailyLossDefault: this.cfg.dailyLoss, dailyLossOverride: this.store.get('dailyLossOverride') !== null, dailyLossHalted: this.store.get(this.lossHaltKey(now), false),
+        effectiveDailyLoss: this.effectiveDailyLoss() },
+      riskLevels: this.riskLevels.snapshot(),
       warnings: [...(this.cfg.mode === 'demo' ? ['Synthetic accelerated data; results have no investment meaning.'] : []), ...(this.cfg.crypto.length ? ['Crypto exits depend on this service and network availability.'] : []), 'Strategies and model thresholds are unvalidated research hypotheses.'] };
   }
   healthyForHeartbeat() {

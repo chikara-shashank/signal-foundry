@@ -6,6 +6,8 @@ import { tradePerformanceData } from './trade-performance.js';
 import { activityPage } from './observability.js';
 import { createQuoteStream, intervalWidth } from './realtime.js';
 import { jevTracePage, jevTraceDetail } from './jev-traces.js';
+import { scorecardReport } from './scorecard.js';
+import { codeHash } from './strategy-manifest.js';
 
 // Explicit public asset registry: private source, journals and .env are never served.
 const scripts = [
@@ -60,6 +62,7 @@ export function createDashboard(engine, cfg) {
       }
       if (path === '/api/options' && req.method === 'GET') return engine.optionsLab ? json(200, engine.optionsLab.snapshot()) : json(503, { error: 'Options research is not initialized' });
       if (path === '/api/research' && req.method === 'GET') return json(200, engine.research());
+      if (path === '/api/scorecard' && req.method === 'GET') return json(200, { ...scorecardReport(engine.store.orders(), cfg, { codeHash, now: engine.clock() }), riskLevels: engine.riskLevels.snapshot() });
       if (path === '/api/jev-traces' && req.method === 'GET') {
         const p = new URL(req.url, 'http://localhost').searchParams;
         return json(200, jevTracePage(engine, { symbol: p.get('symbol') ?? '', limit: Number(p.get('limit') ?? 40) }));
@@ -118,7 +121,8 @@ export function createDashboard(engine, cfg) {
           return json(202, { candidateId: result.id, status: result.status, reason: result.reason, orderId: result.orderId });
         }
         const { action, confirmation } = request;
-        if (!['pause', 'resume', 'cancel_entries', 'flatten'].includes(action)) return json(400, { error: 'Invalid action' });
+        if (!['pause', 'resume', 'cancel_entries', 'flatten', 'reset_drawdown_brake'].includes(action)) return json(400, { error: 'Invalid action' });
+        if (action === 'reset_drawdown_brake' && !engine.riskLevels.active) return json(409, { error: 'Risk levels are off (RISK_LEVELS=off); there is no drawdown brake to reset.' });
         if (action === 'flatten' && confirmation !== 'FLATTEN_MANAGED_POSITIONS') return json(400, { error: 'Flatten confirmation required' });
         await engine.control(action); return json(202, { accepted: true, action });
       }

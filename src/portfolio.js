@@ -60,7 +60,7 @@ export class Portfolio {
     const day = nyDate(now), baselineKey = `agentPnlBaseline:${day}`;
     if (valid && e.store.get(baselineKey) === null) e.store.set(baselineKey, { value: totalPnl, ts: now });
     const baseline = e.store.get(baselineKey), dailyPnl = valid && baseline ? totalPnl - baseline.value : null;
-    if (dailyPnl !== null && dailyPnl <= -e.dailyLossLimit) e.store.set(`agentLossHalt:${day}`, true);
+    if (dailyPnl !== null && dailyPnl <= -(e.effectiveDailyLoss?.() ?? e.dailyLossLimit)) e.store.set(`agentLossHalt:${day}`, true);
     let cashAvailable = account.cash;
     if (shared && valid) {
       if (e.store.get('sharedCashAnchor') === null) {

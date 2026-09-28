@@ -73,7 +73,7 @@ export function checkAddition(e,c) {
   }
   const dailyPnl=e.cfg.accountPolicy==='shared'?e.portfolio.state.dailyPnl:e.dailyPnl;
   if(!Number.isFinite(dailyPnl))return deny('addition_daily_risk_unavailable');
-  const dailyQty=Math.floor((e.dailyLossLimit+Math.min(0,dailyPnl)-openRisk)/perShareLoss);
+  const dailyQty=Math.floor(((e.effectiveDailyLoss?.() ?? e.dailyLossLimit)+Math.min(0,dailyPnl)-openRisk)/perShareLoss);
   if(dailyQty<1)return deny('addition_daily_risk_budget');
   return {ok:true,rootId:root.id,stop,target:root.target,maxQty:Math.min(maxQty,dailyQty),riskBudget,retained,setup,
     existingValue:marked.qty*q.ask,minNetRewardRisk:p.minNetRewardRisk};

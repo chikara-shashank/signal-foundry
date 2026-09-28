@@ -99,7 +99,7 @@ export class StrategyControls {
       }
       const wins = closed.filter(t => t.estimatedNetPnl > 0).length;
       return { id, name: definition?.name ?? id.replaceAll('_', ' '), description: definition?.description ?? 'Retained journal history; execution is not configurable here.',
-        qualification: qualification(e,id),
+        qualification: qualification(e,id), riskLevel: e.riskLevels?.active ? e.riskLevels.strategy(id) : null,
         riskPolicy: id === 'noise_area' ? { sizing:'fixed_notional', notional:e.cfg.noiseNotional, nominalStopRisk:e.cfg.noiseNotional*e.cfg.noiseStopBps/10000, reservation:e.noiseReservation(), dailyLoss:e.dailyLossLimit }
           : { sizing:'stop_risk_budget', risk:e.cfg.risk, maxPosition:e.cfg.maxPosition, dailyLoss:e.dailyLossLimit, ...(id==='close_strength_carry'?{overnight:e.cfg.overnight}: {}) },
         trigger: definition?.trigger ?? 'historical', installed: !!definition, enabled: setting?.enabled ?? false,

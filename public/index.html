@@ -428,6 +428,7 @@
               <button data-action="resume">Resume</button>
               <button data-action="cancel_entries">Cancel entries</button>
               <button data-action="flatten" class="danger">Flatten managed</button>
+              <button data-action="reset_drawdown_brake" id="reset-brake" hidden>Reset drawdown brake</button>
             </div>
           </section>
           <div id="action-message" role="status"></div>
@@ -494,6 +495,7 @@
                 <button id="save-risk" type="submit">Save ceiling</button>
               </div>
               <p id="risk-source" class="muted"></p>
+              <p id="risk-levels" class="muted"></p>
               <p id="risk-scope-note" class="muted">Account-wide daily equity change, including external holdings. A triggered halt lasts through the New York date; raising the ceiling does not clear it.</p>
               <p id="risk-result" role="status"></p>
             </form>

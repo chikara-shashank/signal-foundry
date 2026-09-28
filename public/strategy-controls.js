@@ -102,6 +102,8 @@ export class StrategyControlsView {
       const risk=strategy.riskPolicy, q=strategy.qualification;
       if(risk.overnight)values.description+=` Shared carry cap ${(risk.overnight.capFraction*100).toFixed(1)}% of engine equity; each entry also limited to ${(risk.overnight.positionFraction*100).toFixed(1)}%.`;
       values.description += ` Current version ${q.experimentId.slice(0,12)} · ${q.liveEligible?'qualified':'paper experiment'}. ` + (risk.sizing==='fixed_notional' ? `${money(risk.notional)} notional / ${money(risk.nominalStopRisk)} nominal stop risk; reservation ${risk.reservation.reason}.` : `${money(risk.risk)} stop risk / ${money(risk.maxPosition)} position cap.`);
+      const level = strategy.riskLevel;
+      if (level) values.description += ` Risk level ${level.level} (×${level.multiplier})${level.next ? `; Level ${level.next} needs ${level.missing.join(', ')}` : ''}.`;
       for (const [key, value] of Object.entries(values)) f[key].textContent = value;
       f.net.className = strategy.realizedNetPnl == null || strategy.realizedNetPnl === 0 ? '' : strategy.realizedNetPnl > 0 ? 'positive' : 'negative';
       f.open.className = strategy.openGrossPnl == null || strategy.openGrossPnl === 0 ? '' : strategy.openGrossPnl > 0 ? 'positive' : 'negative';

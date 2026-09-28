@@ -39,6 +39,12 @@ export function config(env = process.env) {
     breakoutArmR: num('BREAKOUT_ARM_R', 1, .5, 5), breakoutTrailR: num('BREAKOUT_TRAIL_R', .75, .1, 5),
     breakoutNoProgress: num('BREAKOUT_NO_PROGRESS_MINUTES', 15, 5, 120) * 60000,
     breakoutMinRewardRisk: num('BREAKOUT_MIN_NET_REWARD_RISK', 1, .1, 5),
+    // Evidence-gated risk levels (docs/RISK-LEVELS.md). off leaves every limit above exactly as written.
+    riskLevels: { mode: str('RISK_LEVELS', 'off'), max: num('RISK_LEVEL_MAX', 2, 1, 3),
+      level2Multiplier: num('RISK_LEVEL2_MULTIPLIER', 10, 1, 1000), level3Multiplier: num('RISK_LEVEL3_MULTIPLIER', 50, 1, 5000),
+      level2Trades: num('RISK_LEVEL2_MIN_TRADES', 100, 20, 100000), level3Trades: num('RISK_LEVEL3_MIN_TRADES', 300, 30, 1000000),
+      halvePct: num('RISK_BRAKE_HALVE_PCT', 5, .1, 100), haltPct: num('RISK_BRAKE_HALT_PCT', 10, .1, 100),
+      maxAccountRiskPct: num('RISK_MAX_ACCOUNT_RISK_PCT', .5, .01, 5) },
   };
   if (!['on','off'].includes(str('BREAKOUT_PROTECTION','on'))) throw new Error('Invalid BREAKOUT_PROTECTION');
   c.cryptoUniverse = str('CRYPTO_UNIVERSE', c.mode === 'demo' ? 'static' : 'top25');
@@ -89,6 +95,12 @@ export function config(env = process.env) {
   if (c.mode === 'live' && (c.liveAck !== 'I_ACCEPT_REAL_MONEY_RISK' || !c.expectedAccount)) throw new Error('Live mode requires LIVE_ACK and EXPECTED_ACCOUNT_ID');
   if (c.mode === 'live' && (c.crypto.length || c.cryptoUniverse === 'top25') && c.cryptoAck !== 'I_ACCEPT_SOFTWARE_EXIT_OUTAGE_RISK') throw new Error('Live crypto requires LIVE_CRYPTO_ACK or CRYPTO_UNIVERSE=off');
   if (c.maxPosition > c.maxGross || c.maxGross > c.capital || c.maxGroup > c.maxGross || !Number.isInteger(c.maxPositions)) throw new Error('Inconsistent allocation limits');
+  const levels = c.riskLevels;
+  if (!['off', 'auto'].includes(levels.mode)) throw new Error('Invalid RISK_LEVELS');
+  // Scaling up on its own is a paper decision; real money changes size only by an operator's hand.
+  if (levels.mode === 'auto' && c.mode === 'live') throw new Error('Automatic risk levels are limited to demo, shadow and paper modes');
+  if (![levels.max, levels.level2Trades, levels.level3Trades].every(Number.isInteger) || levels.level3Trades <= levels.level2Trades ||
+    levels.level3Multiplier < levels.level2Multiplier || levels.haltPct <= levels.halvePct) throw new Error('Inconsistent risk level settings');
   c.symbols = [...c.equities, ...c.crypto];
   c.brokerUrl = c.mode === 'live' ? 'https://api.alpaca.markets' : 'https://paper-api.alpaca.markets';
   if (c.heartbeatUrl && new URL(c.heartbeatUrl).protocol !== 'https:') throw new Error('HEARTBEAT_URL must use HTTPS');

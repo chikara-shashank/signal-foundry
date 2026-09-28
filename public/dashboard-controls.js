@@ -8,6 +8,7 @@ export class DashboardControls {
     document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', async () => {
       const action = button.dataset.action;
       if (action === 'flatten' && !confirm('Pause entries and request closure of all positions managed by this engine? Orders may fill at a loss.')) return;
+      if (action === 'reset_drawdown_brake' && !confirm('Reset the drawdown brake? New entries resume, and the current P/L becomes the new high-water mark.')) return;
       button.disabled = true;
       try { await this.api('/api/control', { action, ...(action === 'flatten' ? { confirmation: 'FLATTEN_MANAGED_POSITIONS' } : {}) }); $('action-message').textContent = `${label(action)} requested. Inspect order states for completion.`; await this.refresh(); }
       catch (e) { $('action-message').textContent = e.message; }
@@ -44,5 +45,10 @@ export class DashboardControls {
     if (!this.riskDirty && !this.riskSaving) { $('daily-loss-input').value = status.limits.dailyLoss; this.riskExpected = status.limits.dailyLoss; }
     $('risk-source').textContent = `${status.limits.dailyLossOverride ? 'Saved dashboard override' : 'Environment default'} · ${money(status.limits.dailyLoss)} active${status.limits.dailyLossHalted ? ' · HALTED FOR TODAY' : ''}. Changes persist across restarts.`;
     $('paper-test-panel').hidden = status.mode !== 'paper';
+    const levels = status.riskLevels, brake = levels?.brake;
+    $('reset-brake').hidden = !(levels?.mode === 'auto' && brake?.state === 'halted');
+    $('risk-levels').textContent = levels?.mode !== 'auto' ? 'Automatic risk levels are off (RISK_LEVELS=off): every limit is the .env value.'
+      : `Risk levels on, up to Level ${levels.max}. Limits in use ×${levels.portfolioMultiplier}; daily loss ceiling in effect ${money(status.limits.effectiveDailyLoss)}. `
+        + `Drawdown brake ${label(brake.state)}: ${brake.drawdownPct.toFixed(1)}% of ${money(brake.budget)} (halves trade size at ${brake.halvePct}%, stops new entries at ${brake.haltPct}%).`;
   }
 }

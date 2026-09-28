@@ -22,7 +22,7 @@ export function performanceData(engine, scope = engine.cfg.accountPolicy === 'sh
       const p = group[j]; points.push({ ts: p.ts, dailyPnl: p.dailyPnl, unrealized: Number.isFinite(p.unrealized) ? p.unrealized : null });
     }
   }
-  return { now, day, mode: engine.cfg.mode, scope, points, dailyLoss: (engine.cfg.accountPolicy === 'shared') === agent ? engine.dailyLossLimit : null, gapMs: engine.cfg.mode === 'demo' ? 120000 : 30000,
+  return { now, day, mode: engine.cfg.mode, scope, points, dailyLoss: (engine.cfg.accountPolicy === 'shared') === agent ? (engine.effectiveDailyLoss?.() ?? engine.dailyLossLimit) : null, gapMs: engine.cfg.mode === 'demo' ? 120000 : 30000,
     latest: { dailyPnl: agent ? engine.portfolio.state.dailyPnl : engine.dailyPnl ?? null,
       unrealized: agent ? engine.portfolio.state.unrealized : engine.account ? engine.positions.reduce((sum, p) => sum + (Number.isFinite(p.unrealized) ? p.unrealized : 0), 0) : null,
       observedAt: engine.account?.ts ?? null },

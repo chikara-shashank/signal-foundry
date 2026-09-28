@@ -29,6 +29,7 @@
     "research:options:benchmarks": "node scripts/options-benchmarks.js",
     "research:options": "node --env-file-if-exists=.env scripts/options-research.js",
     "doctor": "node --env-file-if-exists=.env scripts/doctor.js",
-    "report": "node --env-file-if-exists=.env scripts/report.js"
+    "report": "node --env-file-if-exists=.env scripts/report.js",
+    "scorecard": "node --env-file-if-exists=.env scripts/scorecard.js"
   }
 }
