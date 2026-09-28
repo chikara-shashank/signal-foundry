@@ -274,7 +274,7 @@ export class Engine {
       const completed = await Promise.allSettled(decisions);
       const failed = completed.find(r => r.status === 'rejected');
       if (failed) throw failed.reason;
-    } catch { if(!this.stopped)this.fail('strategy_worker_failure'); }
+    } catch (error) { if(!this.stopped)this.fail('strategy_worker_failure', error); }
     finally { this.pendingCandidates--; }
   }
   async processWorkerCandidate(c) {
