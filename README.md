@@ -1,5 +1,7 @@
 # Signal Foundry
 
+The Strategies tab now supports [broker-paper SPY/QQQ stock shorts and one-contract call/put debit spreads](docs/PAPER-ROUTES.md), with a separate signed-position journal, bounded initial allocation, shared loss controls and restart reconciliation. The feature defaults off and cannot send live-money orders. Paper execution does not establish a profitable edge.
+
 [Sourced research and recorded-policy comparison](docs/SOURCED-RESEARCH.md) add immutable Alpaca-news evidence, a typed thesis, one opposing-case review and a read-only dashboard panel under Research. New research is shadow-only; existing strategy decisions and risk limits remain authoritative. `research:export` exports durable decisions and costs; `research:compare` compares rules, recorded Jev, context, and context plus critic on the same executable-price tape. No profitable edge is established.
 
 Version 1.18.1 repairs [crypto quote timing](docs/CRYPTO-QUOTE-WAITS.md). Signals can wait for a fresh quote within their original deadline, then repeat every entry check. Live shows waiting, expiry, spread and cost counts. Fees and risk limits are unchanged.
@@ -148,14 +150,14 @@ How it works:
 - Every check is recorded as a `noise_area_decision` event and shown in the strategy checklist.
 
 Known gaps:
-- Short signals are recorded but not traded, because the engine cannot hold agent short positions yet.
+- Noise-area short signals remain research only. The separate paper short route uses its own directional eligibility and journal.
 - Jev is not consulted for this strategy.
 - In `shared` accounts an external holding in the symbol or its options reserves it, and the strategy then records `external_symbol_reserved` instead of trading.
 
 ## Jev decision-mode review
 
 See [the v1.6 robustness review](docs/ROBUSTNESS-v1.6.md) for the revised five-minute crypto profile, IOC entries, request budgeting, strategy economics and forward Jev outcome measurements. The [earlier Jev review](docs/JEV-TRADING-REVIEW.md) explains the classifier's limitations. Neither release establishes profitable trading or exchange-grade HFT.
-Options research now includes five independently switchable, defined-risk spread hypotheses, OPRA/SIP collection, a separate hypothetical ledger, delayed bid/ask replay and frozen experiment hashes. No options orders are sent to Alpaca. See [research, rules, limitations and commands](docs/OPTIONS-RESEARCH.md). Options controls start off and require paper/shadow mode plus the relevant data access.
+Options research includes five independently switchable, defined-risk spread hypotheses, OPRA/SIP collection, a separate hypothetical ledger, delayed bid/ask replay and frozen experiment hashes. That research ledger sends no orders; the separate [paper routes](docs/PAPER-ROUTES.md) can execute debit spreads. See [research, rules, limitations and commands](docs/OPTIONS-RESEARCH.md). Options research controls start off and require paper/shadow mode plus the relevant data access.
 # v1.10 audit remediation
 
 See [the remediation and deployment guide](docs/AUDIT-REMEDIATION.md) for request-budget protection, durable execution incidents, version-filtered strategy results, broker-activity accounting, recovery tools and the remaining research/execution gaps. `scripts/deploy-paper.ps1` preserves the approved $2,000 paper daily-loss limit and verifies the new release before resuming entries. This release does not qualify any strategy for live trading or connect options broker orders.

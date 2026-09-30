@@ -61,7 +61,7 @@ export class RiskLevels {
   }
 
   // Called from reconciliation; does its work at most every 30 seconds.
-  tick(now, { unrealized } = {}) {
+  tick(now, { unrealized, additionalRealized = 0 } = {}) {
     if (!this.active || now - this.evaluatedAt < RISK_LEVEL_EVALUATION_MS) return;
     this.evaluatedAt = now;
     const e = this.engine, report = scorecardReport(e.store.orders(), e.cfg, { codeHash, now }), levels = {}, evidence = {};
@@ -75,7 +75,7 @@ export class RiskLevels {
         net: evidence[id]?.net ?? 0, missing: evidence[id]?.missing ?? [], codeHash }, now);
     }
     this.state.levels = levels; this.evidence = evidence;
-    if (Number.isFinite(unrealized) && Number.isFinite(report.realizedNetAll)) this.updateBrake(report.realizedNetAll + unrealized, now);
+    if (Number.isFinite(unrealized) && Number.isFinite(report.realizedNetAll) && Number.isFinite(additionalRealized)) this.updateBrake(report.realizedNetAll + unrealized + additionalRealized, now);
     this.save();
   }
 

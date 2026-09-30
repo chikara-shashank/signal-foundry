@@ -38,9 +38,12 @@ export class Accounting {
       for(const fill of [order,...(order.legs??[])])if(fees.has(fill.brokerId)&&fees.get(fill.brokerId)>=0){fill.fee=fees.get(fill.brokerId);fill.feeSource='broker_activity_provisional';changed=true;}
       if(changed)e.store.order(order);
     }
+    let routeFeesChanged=false;
+    for(const order of e.paperRoutes?.accountingOrders()??[])for(const fill of [order,...(order.legs??[])])if(fees.has(fill.brokerId)&&fees.get(fill.brokerId)>=0){fill.fee=fees.get(fill.brokerId);fill.feeSource='broker_activity_provisional';routeFeesChanged=true;}
+    if(routeFeesChanged)e.paperRoutes.save();
   }
   snapshot(){
-    const e=this.engine, rows=e.store.activities(), orders=e.store.orders(), byBroker=new Map();
+    const e=this.engine, rows=e.store.activities(), orders=[...e.store.orders(),...(e.paperRoutes?.accountingOrders()??[])], byBroker=new Map();
     for(const o of orders)for(const x of [o,...(o.legs??[])])if(x.brokerId)byBroker.set(x.brokerId,o);
     const own=rows.filter(r=>r.orderId&&byBroker.has(r.orderId)), unattributed=rows.filter(r=>r.type!=='FILL'&&(!r.orderId||!byBroker.has(r.orderId)));
     const mismatches=[];

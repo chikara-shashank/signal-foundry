@@ -45,6 +45,8 @@ export function protectionHealth(engine) {
       protection: engine.externalSymbols.has(symbol) ? 'ownership_incident' : native ? 'broker_stop' : 'software_only' };
   });
   const incidents = Object.values(engine.store.get('executionIncidents', {})).filter(x => !x.resolvedAt);
-  return { ...engine.protection, stale, healthy: !stale && engine.protection.state === 'reconciled' && !incidents.length,
+  for (const t of engine.paperRoutes?.active() ?? []) positions.push({ symbol: t.symbol, entryId: t.id, exitReason: t.exitReason ?? null,
+    protection: engine.paperRoutes.stats.conflicts.includes(t.symbol) ? 'ownership_incident' : t.route === 'stock_short' && t.orders[0]?.legs?.some(l => ['stop','stop_limit'].includes(l.type) && !terminal(l.status) && !['held','pending_new'].includes(l.status)) ? 'broker_stop' : 'software_only' });
+  return { ...engine.protection, stale, healthy: !stale && engine.protection.state === 'reconciled' && !incidents.length && (engine.paperRoutes?.stats.valid ?? true),
     positions, incidents, alertConfigured: !!engine.cfg.heartbeatUrl };
 }

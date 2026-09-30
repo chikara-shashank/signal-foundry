@@ -15,6 +15,7 @@ import { DiscoveryView } from './discovery.js';
 import { TradePerformanceView } from './trade-performance.js';
 import { SessionResearchView } from './session-research.js';
 import { TradeAlternativesView } from './trade-alternatives.js';
+import { PaperRoutesView } from './paper-routes.js';
 import { $, money, number, quotePrice, time, escape, label } from './dashboard-format.js';
 let token = '', busy = false, selectedSymbol = '', selectedInterval = 1, latestStatus = null, latestChart = null, chartSequence = 0, selectedEvent = null, session = 0;
 async function api(path, body) {
@@ -34,6 +35,7 @@ const optionsLab = new OptionsLabView(api);
 const discovery = new DiscoveryView();
 const sessionResearch = new SessionResearchView(api);
 const tradeAlternatives = new TradeAlternativesView(api);
+const paperRoutes = new PaperRoutesView(api);
 const tradePerformance = new TradePerformanceView(api);
 const controls = new DashboardControls(api, refresh, () => selectedSymbol, () => { accountPerformance.last = 0; });
 const tabs = new DashboardTabs(() => {
@@ -71,9 +73,9 @@ function renderLivePrice(data) {
   $('chart-summary').textContent = `${data.bars.length} ${data.intervalMs < 60000 ? 'trade-print' : 'provider'} candles · ${intervalLabel(selectedInterval)} · ${live.connected ? '100 ms push target' : '2s polling fallback'}`;
   const p = data.position;
   if (p && q && data.quoteFresh) {
-    const pnl = (q.bid - p.entryPrice) * p.qty;
+    const pnl = ((p.qty < 0 ? q.ask : q.bid) - p.entryPrice) * p.qty;
     $('position-pnl').textContent = money(pnl); $('position-pnl').className = pnl >= 0 ? 'positive' : 'negative';
-    $('position-pnl-basis').textContent = `${number(p.qty)} last reconciled quantity · live bid mark, before exit fees${data.positionPnl?.external ? ' · external holding' : ''}`;
+    $('position-pnl-basis').textContent = `${number(p.qty)} last reconciled quantity · live ${p.qty < 0 ? 'ask' : 'bid'} mark, before exit fees${data.positionPnl?.external ? ' · external holding' : ''}`;
   } else {
     $('position-pnl').textContent = p ? money(p.unrealized) : '—'; $('position-pnl').className = p ? p.unrealized >= 0 ? 'positive' : 'negative' : 'muted';
     $('position-pnl-basis').textContent = p ? 'Last broker mark · waiting for a usable quote' : 'No open position in this instrument';
@@ -146,14 +148,15 @@ async function refresh() {
       tabs.active === 'performance' && researchResults.refresh(),
       tabs.active === 'strategies' && strategyControls.refresh(s),
       tabs.active === 'strategies' && optionsLab.refresh(),
+      tabs.active === 'strategies' && paperRoutes.refresh(),
       ['operations', 'strategies', 'logs'].includes(tabs.active) && operations.refresh(s, selectedSymbol, tabs.active),
       tabs.active === 'logs' && jevLog.refresh(s),
     ]);
-  } catch (e) { if (generation !== session) return; tradePerformance.disconnect(); sessionResearch.disconnect(); tradeAlternatives.disconnect(); $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; $('live-state').textContent = $('state-text').textContent; live.stop(); }
+  } catch (e) { if (generation !== session) return; tradePerformance.disconnect(); sessionResearch.disconnect(); tradeAlternatives.disconnect(); paperRoutes.disconnect(); $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; $('live-state').textContent = $('state-text').textContent; live.stop(); }
   finally { busy = false; if (refreshPending) { refreshPending = false; void refresh(); } }
 }
 $('login-form').addEventListener('submit', e => { e.preventDefault(); session++; token = $('token').value.trim(); $('token').value = ''; if (busy) refreshPending = true; void refresh(); });
-$('disconnect').addEventListener('click', () => { session++; token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; controls.clear(); chart.clear(); accountPerformance.clear(); researchResults.clear(); tradePerformance.clear(); sessionResearch.clear(); tradeAlternatives.clear(); operations.clear(); jevLog.clear(); strategyControls.clear(); optionsLab.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
+$('disconnect').addEventListener('click', () => { session++; token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; controls.clear(); chart.clear(); accountPerformance.clear(); researchResults.clear(); tradePerformance.clear(); sessionResearch.clear(); tradeAlternatives.clear(); paperRoutes.clear(); operations.clear(); jevLog.clear(); strategyControls.clear(); optionsLab.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
 $('chart-symbol').addEventListener('change', () => { selectedSymbol = $('chart-symbol').value; live.stop(); latestChart = null; selectedEvent = null; $('trade-detail').innerHTML = '<p>Select a signal, order, or fill.</p>'; chart.clear(); void refreshChart(); });
 document.querySelectorAll('[data-interval]').forEach(b => b.addEventListener('click', () => { selectedInterval = b.dataset.interval.endsWith('s') ? b.dataset.interval : Number(b.dataset.interval); live.stop(); latestChart = null; chart.clear(); document.querySelectorAll('[data-interval]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); void refreshChart(); }));
 $('chart-signals').addEventListener('change', e => { chart.showSignals = e.target.checked; chart.draw(); });

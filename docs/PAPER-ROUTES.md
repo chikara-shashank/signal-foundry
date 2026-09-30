@@ -1,0 +1,31 @@
+# Broker-paper shorts and debit spreads
+
+The Strategies tab's **Shorts & debit spreads** panel enables actual Alpaca paper orders for SPY/QQQ. This is a separate, durable signed-position journal from the legacy buy-first strategies and the hypothetical Options lab. New installations default off. Both `MODE=paper` and the exact `https://paper-api.alpaca.markets` host are enforced at submission. This feature has no live-money path.
+
+## Eligible trades and limits
+
+- Stock shorts sell first with an integer-share, GTC limit bracket: buy stop above the entry, buy target below. Borrow metadata must be fresh, shortable and easy to borrow; the account must permit shorts and have at least $2,000 equity.
+- Bullish call debit and bearish put debit verticals use one standard SPY/QQQ contract per leg, same expiry and type. Account options level 3 and sufficient options buying power are required. Both legs enter together in a limit `mleg` order with explicit opening intents and close together with inverse closing intents. Credit spreads, naked options, condors and long-volatility trades remain research only.
+- One active route; $100 maximum planned risk, $1,000 short notional and $100 route daily-loss stop. Global allocation, gross/group exposure, position count, cash, loss halt, clock and request-budget controls still apply. Drawdown halving reduces risk and short notional; indivisible spreads that exceed the reduced limit are skipped. Earned strategy levels never increase these route caps.
+- Short allocation reserves 150% of notional. Options reserve at least the vertical width times 100. The $100 route cap is distinct from legacy per-trade risk settings. Planned short-stop risk is not a guaranteed maximum loss; fills through gaps can exceed it. A debit spread's bounded expiration payoff assumes the spread remains intact; assignment and execution problems require reconciliation.
+- Entries expire after 20 seconds; maximum hold is 30 minutes; exits begin at least ten minutes before session close. Entry requires at least 40 minutes left. All executions use the regular equity session, including early-close calendars.
+
+The entry rules reuse the frozen direction/structure eligibility described in [Trade alternatives](TRADE-ALTERNATIVES.md), using completed context, SIP stock quotes and OPRA option quotes. Eligible candidates rotate deterministically for paper execution validation. Jev is not consulted and a buy approval is never reused to authorize a short or options structure. Neither rotation nor the existing rules establish which instrument will make the most money. The research requirements of 100 matched outcomes and 60 sessions are evidence thresholds, not prerequisites for this bounded paper test.
+
+## Ownership, exits and accounting
+
+Every request is persisted before submission with a unique client order ID. Lost acknowledgments are recovered by that ID; unknown outcomes reserve allocation and block entries rather than resubmitting. Restart preserves all orders and expected signed positions. Broker quantities, native stop fills and both option legs must match the journal. External positions/orders in the underlying or its contracts prevent entry. Assignment-like stock, unbalanced option legs, disappeared fills and other ownership conflicts block new entries and require review; the system never claims or flattens an unproven holding.
+
+Stock closes cancel remaining native bracket exits and wait for broker confirmation before covering only the reconciled short quantity. Options exits are software managed: 50% of entry debit stop, 150% target, short leg in the money, 90 seconds without usable leg quotes, holding deadline, or a loss halt requests a package market close. Software exits require the service, connectivity and an open session. Market execution can be worse than the observed quote. Three unsuccessful terminal exit attempts require an execution incident review; uncertain attempts remain unresolved and are not repeated.
+
+Global Pause cancels pending entries while keeping owned exits active. Disabling this panel also retains exits. Global Flatten requests closes after reconciliation and native cancellation. Closed routes retain their P/L and fees. Signed cash flows use the 100-share options multiplier and feed agent P/L, daily loss and drawdown calculations. Fees start as estimates and are updated from attributed broker activities; economic accounting remains provisional. The route execution table is separate from the legacy strategy scorecard and trade-return chart.
+
+## Controls and recovery
+
+`GET /api/paper-routes` returns policy, settings revision, reconciliation state and recent orders. Authenticated, same-origin `POST /api/paper-routes` accepts `{ "enabled": true, "expectedRevision": <current revision> }`; stale revisions fail. Settings and the complete journal live in SQLite under `paperRoutes`, included in normal backups. Experiment fingerprint changes must never clear actual broker exposure.
+
+Before deployment, pause new entries, take an integrity-checked SQLite backup and retain the previous image. After restart, verify release fingerprint, clock, account identity, existing exposure and journal reconciliation before enabling/resuming. Do not roll back to a build lacking paper-route management while these positions or unresolved orders exist.
+
+Validation covers short/cover direction, packaged opening/closing intents, partial fills, lost acknowledgments, restart, cancellation races, mismatched ownership, assignment-like stock, leg-quote outages, capability gates, allocation and loss limits, fee retention, API authentication and revision checks. Passing these tests verifies software behavior, not profitability or complete broker execution quality.
+
+Broker references: [Level 3 and multi-leg orders](https://docs.alpaca.markets/us/docs/options-level-3-trading), [options execution and assignment](https://docs.alpaca.markets/us/docs/options-trading), [order types](https://docs.alpaca.markets/us/docs/orders-at-alpaca), [short-selling eligibility](https://docs.alpaca.markets/us/docs/margin-and-short-selling).

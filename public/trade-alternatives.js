@@ -3,7 +3,7 @@ const time = t => t ? new Date(t).toLocaleString('en-US', { timeZone: 'America/N
 export function alternativesHtml(s) {
   const latest = s.recent ?? [], pairs = s.pairs ?? [];
   return `<div class="session-cards">
-    <article><h3>Compare before execution</h3><strong>${s.enabled ? 'Shadow observations on' : 'Disabled'}</strong><p>SPY &amp; QQQ · independent bullish, bearish and options hypotheses. No broker orders or automatic promotion.</p></article>
+    <article><h3>Compare before execution</h3><strong>${s.enabled ? 'Shadow observations on' : 'Disabled'}</strong><p>SPY &amp; QQQ · independent bullish, bearish and options hypotheses. This comparison ledger sends no orders. <a href="#paper-routes-panel">Broker paper executions →</a></p></article>
     <article><h3>Evidence collected</h3><strong>${Number(s.totalCohorts)} decision groups</strong><p>Last capture: ${esc(time(s.lastAt))}<br>Counts cover this experiment; the latest ${Number(s.policy.maxCohorts)} groups are retained in this view. No validated winner yet.</p></article>
     <article><h3>Frozen research limits</h3><strong>${money(s.policy.risk)} per alternative</strong><p>Stock notional ≤ ${money(s.policy.maxNotional)} · maximum 30-minute horizon, plus observed exit latency. Stock stops can lose more in a gap; option expiry loss and stock stop risk are different measures.</p></article>
     </div><p class="session-warning" role="status">${esc(label(s.error ?? ''))}</p>

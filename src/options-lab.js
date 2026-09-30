@@ -72,10 +72,10 @@ export class OptionsLab {
     if (this.engine.schedule && !this.engine.schedule.state().equityTracking) return;
     const comparison = this.engine.tradeAlternatives, labActive = !this.unavailable() &&
       (Object.values(this.state.enabled).some(Boolean) || this.state.positions.length || this.state.pending.length);
-    if (this.running || !this.adapter || (!labActive && !comparison?.active) || Date.now() - this.lastPoll < P.pollMs) return;
+    if (this.running || !this.adapter || (!labActive && !comparison?.active && !this.engine.paperRoutes?.needsData()) || Date.now() - this.lastPoll < P.pollMs) return;
     this.running = true; this.lastPoll = Date.now(); const revision = this.state.revision;
     try {
-      const watched = [...(labActive ? [...this.state.positions, ...this.state.pending].flatMap(p => optionLegs(p).map(l=>l.contract)) : []), ...(comparison?.active ? comparison.watched() : [])];
+      const watched = [...(labActive ? [...this.state.positions, ...this.state.pending].flatMap(p => optionLegs(p).map(l=>l.contract)) : []), ...(comparison?.active ? comparison.watched() : []), ...(this.engine.paperRoutes?.watched() ?? [])];
       const frame = await this.adapter.capture(['SPY', 'QQQ'], watched), e = this.engine;
       if (e.stopped) return;
       if (e.schedule && !e.schedule.state().equityTracking) return;
@@ -92,6 +92,7 @@ export class OptionsLab {
           try { comparison.observe(frame, !e.operatorPause); }
           catch { comparison.error = 'comparison_record_failed'; }
         }
+        if (e.paperRoutes?.needsData()) await e.paperRoutes.observe(frame);
         this.error=null;
       });
       await this.tape.flush();

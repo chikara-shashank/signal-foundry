@@ -99,7 +99,7 @@ export function chartData(engine, symbol, interval = 1) {
   const position = engine.positions.find(p => p.symbol === symbol) ?? null;
   const management = engine.externalSymbols.has(symbol) ? null : engine.managed[symbol];
   const quote = engine.quotes.get(symbol), fresh = validateQuote(quote, now, engine.cfg.maxQuoteAge);
-  const positionPnl = position ? { value: fresh ? (quote.bid - position.entryPrice) * position.qty : position.unrealized,
+  const positionPnl = position ? { value: fresh ? ((position.qty < 0 ? quote.ask : quote.bid) - position.entryPrice) * position.qty : position.unrealized,
     basis: fresh ? 'bid mark, before exit fees' : 'last broker mark', fresh,
     qty: position.qty, entryPrice: position.entryPrice, external: engine.externalSymbols.has(symbol) } : null;
   const trades = [];

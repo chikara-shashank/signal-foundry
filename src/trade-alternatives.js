@@ -56,7 +56,7 @@ function stockCandidate(id, symbol, f) {
     risk: quantity * unitRisk, riskKind: 'planned_stop_loss_not_guaranteed', net: null,
     decisionQuote: structuredClone(q), review: 'independent_direction_review_required' };
 }
-function routesFor(symbol, f) {
+export function routesFor(symbol, f) {
   const only = { ...f, universe: [symbol] }, routes = [stockCandidate('stock_long', symbol, f), stockCandidate('stock_short', symbol, f)];
   for (const id of ALTERNATIVE_ROUTES.slice(2, 7)) {
     const scan = scanOptions(only, [id]), candidate = scan.candidates.find(c => c.underlying === symbol);

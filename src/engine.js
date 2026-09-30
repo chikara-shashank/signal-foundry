@@ -16,6 +16,7 @@ import { Accounting } from './accounting.js';
 import { CryptoQuoteWaits } from './crypto-quote-waits.js';
 import { ResearchContext } from './research-context.js';
 import { TradeAlternatives } from './trade-alternatives.js';
+import { PaperRoutes } from './paper-routes.js';
 import { RiskLevels } from './risk-levels.js';
 import { RELEASE } from './release.js';
 import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
@@ -58,6 +59,7 @@ export class Engine {
     this.accounting = new Accounting(this);
     this.researchContext = new ResearchContext(this);
     this.tradeAlternatives = new TradeAlternatives(cfg, store);
+    this.paperRoutes = new PaperRoutes(this);
   }
   async init() {
     this.store.lease(Date.now());
@@ -342,6 +344,8 @@ export class Engine {
     const deny = reason => ({ ok: false, reason });
     const now = this.clock();
     if (this.timebase && !this.timebase.status().synchronized) return deny('clock_not_synchronized');
+    if (this.paperRoutes.reserved(c.symbol)) return deny('paper_route_symbol_reserved');
+    if (!this.paperRoutes.stats.valid) return deny('paper_route_reconciliation_required');
     const paperTest = c.strategy === 'operator_paper_test';
     if (!this.cfg.symbols.includes(c.symbol)) return deny('symbol_left_universe');
     if (isCrypto(c.symbol) && this.cfg.cryptoUniverse==='off') return deny('crypto_entries_disabled');
@@ -361,6 +365,8 @@ export class Engine {
     if (this.broker.entryBudgetAvailable && !this.broker.entryBudgetAvailable()) return deny('broker_request_budget');
     const addition=c.addition ? checkAddition(this,c) : null;
     if(addition && !addition.ok)return addition;
+    if (!addition && this.cfg.maxPositions > 0 && this.paperRoutes.active().length &&
+        this.portfolio.positions.filter(p => !this.paperRoutes.owns(p.symbol)).length + this.pending().filter(o => o.kind === 'entry').length + this.paperRoutes.active().length >= this.cfg.maxPositions) return deny('position_limit');
     const ownedLegs=addition ? new Set(campaignEntries(this.store.orders(),addition.rootId).flatMap(o=>(o.legs??[]).map(l=>l.brokerId))) : new Set();
     const rootBrokerId=addition ? this.store.getOrder(addition.rootId)?.brokerId : null;
     if (this.openOrders.some(o => (o.symbol === c.symbol && !ownedLegs.has(o.brokerId) && !(rootBrokerId && o.brokerId===rootBrokerId && o.status==='filled')) || o.legs?.some(l => l.symbol === c.symbol && !terminal(l.status) && !ownedLegs.has(l.brokerId)))) return deny('broker_orders_present');
@@ -376,7 +382,11 @@ export class Engine {
     if(carry)riskConfig.maxPosition=Math.min(riskConfig.maxPosition,carryAllocation.headroom,carryAllocation.base*this.cfg.overnight.positionFraction);
     const shared = this.cfg.accountPolicy === 'shared';
     const riskAccount = shared ? { ...this.account, cash: Math.min(this.account.cash, this.portfolio.state.cashAvailable) } : this.account;
-    const decision = sizeEntry(addition ? {...c,stop:addition.stop,target:addition.target} : c, this.quotes.get(c.symbol), riskAccount, shared ? this.portfolio.positions : this.positions, this.pending(), riskConfig, this.assets.get(c.symbol), now, this.session, addition);
+    const routeReserve = this.paperRoutes.capitalReserved();
+    for (const key of ['maxGross','maxGroup','capital']) riskConfig[key] -= routeReserve;
+    const allocationAccount = { ...riskAccount, cash: riskAccount.cash - routeReserve, buyingPower: riskAccount.buyingPower - routeReserve };
+    const allocationPositions = (shared ? this.portfolio.positions : this.positions).filter(p => !this.paperRoutes.owns(p.symbol));
+    const decision = sizeEntry(addition ? {...c,stop:addition.stop,target:addition.target} : c, this.quotes.get(c.symbol), allocationAccount, allocationPositions, this.pending(), riskConfig, this.assets.get(c.symbol), now, this.session, addition);
     if(addition && decision.ok)decision.additionPlan=addition;
     // Journaled on the entry order, so every fill can be traced to the level that sized it.
     if(decision.ok && this.riskLevels.active)decision.riskLevel={level:levels.level,multiplier:levels.multiplier,brake:levels.brake};
@@ -488,7 +498,7 @@ export class Engine {
       let now = this.clock(); this.lastLoop = Date.now(); this.store.lease(Date.now());
       this.outcomes.sweep(now);
       try {
-        const priority = Object.keys(this.managed).length || this.pending().length ? 'protection' : 'normal';
+        const priority = Object.keys(this.managed).length || this.pending().length || this.paperRoutes.active().length ? 'protection' : 'normal';
         const [session, open, positions] = await Promise.all([this.broker.clock(now, priority), this.broker.openOrders(priority), this.broker.positions(priority)]);
         now = this.clock();
         const locals = this.store.orders();
@@ -516,9 +526,10 @@ export class Engine {
         const account = await this.broker.account(this.clock(), priority);
         if (`${this.cfg.mode}:${account.id}` !== this.store.get('identity')) throw new Error('account_changed');
         this.account = account; this.session = session; this.positions = positions; this.openOrders = open;
+        await this.paperRoutes.reconcile(open, positions, account, now);
         // Gross fill cash flow is an upper bound: actual fees can reduce cash further.
         // An unexpected cash increase needs investigation in this dedicated account.
-        const cashUpperBound = this.store.get('cashAnchor') + this.cashFlow(locals);
+        const cashUpperBound = this.store.get('cashAnchor') + this.cashFlow(locals) + this.paperRoutes.stats.cashFlow;
         const shared = this.cfg.accountPolicy === 'shared';
         const cashCoherent = shared ? Number.isFinite(account.cash) : Number.isFinite(cashUpperBound) && account.cash <= cashUpperBound + .02;
         for (const o of locals) if (o.kind === 'entry' && o.filledQty > 0 && !o.settledAt) {
@@ -528,7 +539,7 @@ export class Engine {
         }
         this.store.set('lastAccountSnapshot', { account, positions: this.positions, ts: now });
         const ownIds = new Set(this.store.orders().map(o => o.id));
-        const unmatchedOrders = open.filter(o => !ownIds.has(o.id) && !locals.some(x => x.legs?.some(l => l.brokerId === o.brokerId)));
+        const unmatchedOrders = open.filter(o => !ownIds.has(o.id) && !this.paperRoutes.ownsOrder(o) && !locals.some(x => x.legs?.some(l => l.brokerId === o.brokerId)));
         const externalOrders = unmatchedOrders.length > 0;
         const book = this.portfolio.refresh(positions, this.store.orders(), account, now);
         const campaignOrders=this.store.orders();
@@ -549,8 +560,9 @@ export class Engine {
         };
         const invalidAccount = ![account.equity, account.cash, account.buyingPower].every(Number.isFinite);
         const invalidPosition = this.positions.some(p => !Number.isFinite(p.qty) || p.qty === 0 || !Number.isFinite(p.marketValue) ||
-          (!shared && !positive(p.qty)) || (shared && ownedSymbols.has(p.symbol) && !positive(p.qty)));
+          (!this.paperRoutes.owns(p.symbol) && ((!shared && !positive(p.qty)) || (shared && ownedSymbols.has(p.symbol) && !positive(p.qty)))));
         this.issues = [];
+        if (!this.paperRoutes.stats.valid) this.issues.push('paper_route_execution_incident');
         if (incidents.some(x => !x.resolvedAt)) this.issues.push('execution_incident');
         if (this.timebase && !this.timebase.status().synchronized) this.issues.push('clock_not_synchronized');
         if (!shared && (externalOrders || externalPositions)) this.issues.push('external_account_activity');
@@ -567,7 +579,8 @@ export class Engine {
         this.dailyPnl = account.equity - (baseline ?? account.equity);
         if (!shared && this.dailyPnl <= -this.effectiveDailyLoss()) this.store.set(`lossHalt:${day}`, true);
         if (this.store.get(this.lossHaltKey(now), false)) this.issues.push('daily_loss_limit');
-        this.riskLevels.tick(now, { unrealized: shared ? book.unrealized : positions.reduce((sum, p) => sum + (Number.isFinite(p.unrealized) ? p.unrealized : 0), 0) });
+        this.riskLevels.tick(now, { unrealized: shared ? book.unrealized : positions.reduce((sum, p) => sum + (Number.isFinite(p.unrealized) ? p.unrealized : 0), 0),
+          additionalRealized: this.paperRoutes.stats.valid ? this.paperRoutes.stats.totalPnl - this.paperRoutes.stats.unrealized : NaN });
         if (this.riskLevels.halted()) this.issues.push('drawdown_brake');
         this.ready = this.issues.length === 0;
         this.accounting.observeDay(now);
@@ -585,6 +598,7 @@ export class Engine {
           }
         }
         await this.manageExits(now);
+        await this.paperRoutes.manage(now);
         this.dirtyOrderSymbols.clear();
         this.protection = { state: book.conflicts.length ? 'incident' : 'reconciled', observedAt: Date.now(), reason: book.conflicts.length ? 'managed_position_conflict' : null };
         this.lastReconcile = Date.now(); this.lastLoop = Date.now();
@@ -676,6 +690,7 @@ export class Engine {
         for (const o of this.pending().filter(o => o.kind === 'entry' && !terminal(o.status) && !uncertain(o.status))) await this.cancel(o);
       } else if (action === 'flatten') {
         this.operatorPause = true;
+        this.paperRoutes.flatten();
         for (const m of Object.values(this.managed)) m.exitReason = 'operator_flatten';
         this.store.set('managed', this.managed);
         for (const o of this.pending().filter(o => o.kind === 'entry')) {
@@ -754,7 +769,7 @@ export class Engine {
       reconciliation: { ...this.externalDetails, policy: this.cfg.accountPolicy, blocking: this.issues.some(x => ['external_account_activity', 'external_orders_pending', 'managed_position_conflict', 'agent_accounting_unavailable'].includes(x)), reservedSymbols: this.portfolio.state.reservedSymbols, observedAt: this.lastReconcile,
         guidance: this.cfg.accountPolicy === 'shared' ? 'External holdings remain in this account and are never adopted or closed by the agents. Their symbols and option underlyings are reserved. Agent limits use only the managed book; pending external orders and managed-quantity discrepancies still block new entries.' : 'Entries require an account reconciled with this engine journal. Existing holdings and orders from other tools remain external. Restore the matching journal if these were engine orders, or reconcile them separately in your broker account. Resume and changing the loss ceiling do not adopt external holdings.' },
       account: this.account && { equity: this.account.equity, cash: this.account.cash, buyingPower: this.account.buyingPower }, dailyPnl: this.dailyPnl ?? 0,
-      positions: this.positions.map(p => ({ ...p, management: this.externalSymbols.has(p.symbol) ? null : this.managed[p.symbol] ?? null })), orders: this.store.orders().slice(-100).reverse(),
+      positions: this.positions.map(p => ({ ...p, management: this.externalSymbols.has(p.symbol) ? null : this.managed[p.symbol] ?? this.paperRoutes.active().find(t => t.symbols.includes(p.symbol)) ?? null })), orders: this.store.orders().slice(-100).reverse(),
       candidates: this.store.candidates(60), events: this.store.events(40).filter(e => e.type !== 'market_sample'),
       universe: this.universe?.status() ?? {mode:'static',state:'static',streamed:this.cfg.equities.length},
       market: this.cfg.symbols.map(symbol => ({ symbol, quote: this.quotes.get(symbol) ?? null, bars: (isCrypto(symbol) && this.cfg.mode !== 'demo' ? this.cryptoFeatures : this.features).history.get(symbol)?.length ?? 0, features: this.snapshots.get(symbol) ?? null })),

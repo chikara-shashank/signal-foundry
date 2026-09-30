@@ -46,6 +46,12 @@ export class Portfolio {
         matched.add(entry.symbol); mark += expected * price; unrealized += expected * (price - entry.fillPrice);
       }
     }
+    const routes = e.paperRoutes?.stats;
+    if (routes) {
+      valid &&= routes.valid; cashFlow += routes.cashFlow; fees += routes.fees; mark += routes.mark; unrealized += routes.unrealized;
+      for (const symbol of routes.symbols) matched.add(symbol);
+      for (const symbol of routes.conflicts) conflicts.add(symbol);
+    }
     this.positions = positions.filter(p => matched.has(p.symbol));
     const external = positions.filter(p => !matched.has(p.symbol));
     const totalPnl = cashFlow + mark - fees;

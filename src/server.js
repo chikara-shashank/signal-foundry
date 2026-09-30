@@ -12,7 +12,7 @@ import { codeHash } from './strategy-manifest.js';
 // Explicit public asset registry: private source, journals and .env are never served.
 const scripts = [
   'app', 'chart', 'live', 'operations', 'jev-log', 'strategy-controls', 'options-lab',
-  'discovery', 'session-research', 'research-context-view', 'trade-performance', 'dashboard-format', 'trade-alternatives',
+  'discovery', 'session-research', 'research-context-view', 'trade-performance', 'dashboard-format', 'trade-alternatives', 'paper-routes',
   'dashboard-tabs', 'dashboard-controls', 'dashboard-status', 'account-performance', 'research-results',
   'return-format', 'return-timeline', 'trade-return-chart', 'crypto-signals',
   'design-catalog', 'dashboard-design', 'performance-panels', 'chart-palette',
@@ -51,6 +51,7 @@ export function createDashboard(engine, cfg) {
       if (path === '/api/session-research' && req.method === 'GET') return json(200,{now:engine.clock(),mode:cfg.mode,schedule:engine.schedule?.state()??null,crypto:engine.cryptoUniverse?.status()??{mode:cfg.cryptoUniverse},desk:engine.desk?.snapshot()??null,researchContext:engine.researchContext.snapshot()});
       if (path === '/api/research-context' && req.method === 'GET') return json(200,engine.researchContext.snapshot());
       if (path === '/api/trade-alternatives' && req.method === 'GET') return json(200,engine.tradeAlternatives.snapshot());
+      if (path === '/api/paper-routes' && req.method === 'GET') return json(200,engine.paperRoutes.snapshot());
       if (path === '/api/accounting' && req.method === 'GET') return json(200, engine.accounting.snapshot());
       if (path === '/api/incidents' && req.method === 'GET') return json(200, Object.values(engine.store.get('executionIncidents',{})));
       if (path === '/api/readiness' && req.method === 'GET') { const s=engine.status();return json(s.protection.healthy?200:503,{alive:Date.now()-engine.lastLoop<60000,entryReady:s.entryReady,entryBlockers:s.entryBlockers,protection:s.protection}); }
@@ -96,12 +97,16 @@ export function createDashboard(engine, cfg) {
         const s = engine.status(); res.writeHead(200, { 'Content-Type': 'text/plain' });
         return res.end(`signal_foundry_ready ${Number(s.ready)}\nsignal_foundry_paused ${Number(s.paused)}\nsignal_foundry_equity_usd ${s.account?.equity ?? 0}\nsignal_foundry_daily_pnl_usd ${s.dailyPnl}\nsignal_foundry_model_spend_usd ${s.jev.spent}\nsignal_foundry_open_positions ${s.positions.length}\n`);
       }
-      if (['/api/control', '/api/paper-test', '/api/risk-settings', '/api/strategy-settings', '/api/options-settings', '/api/options-experiment'].includes(path) && req.method === 'POST') {
+      if (['/api/control', '/api/paper-test', '/api/risk-settings', '/api/strategy-settings', '/api/options-settings', '/api/options-experiment', '/api/paper-routes'].includes(path) && req.method === 'POST') {
         if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) return json(403, { error: 'Origin rejected' });
         if (!String(req.headers['content-type']).startsWith('application/json')) return json(415, { error: 'JSON required' });
         let body = '';
         for await (const chunk of req) { body += chunk; if (body.length > 1024) return json(413, { error: 'Request too large' }); }
         const request = JSON.parse(body);
+        if (path === '/api/paper-routes') {
+          try { return json(200, await engine.paperRoutes.update(request)); }
+          catch (error) { if ([400,409].includes(error.status)) return json(error.status, { error: error.message }); throw error; }
+        }
         if (path === '/api/options-settings' || path === '/api/options-experiment') {
           if (!engine.optionsLab) return json(503, { error: 'Options research is not initialized' });
           try { return json(200, await (path === '/api/options-experiment' ? engine.optionsLab.restartExperiment(request) : engine.optionsLab.update(request))); }

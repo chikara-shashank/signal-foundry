@@ -1,5 +1,6 @@
 import { canonical, isCrypto, nyTimestamp, round, terminal } from './util.js';
 import { sharedBrokerBudget } from './broker-budget.js';
+import { validatePaperBody } from './paper-route-orders.js';
 
 export class BrokerError extends Error {
   constructor(status) { super(`broker_http_${status}`); this.status = status; }
@@ -37,6 +38,7 @@ export class AlpacaBroker {
   async account(now, priority = 'normal') {
     const a = await this.request('/v2/account', 'GET', undefined, priority);
     return { id: a.id, equity: Number(a.equity), cash: Number(a.cash), buyingPower: Math.min(Number(a.cash), Number(a.non_marginable_buying_power ?? a.buying_power)),
+      shortingEnabled: a.shorting_enabled === true, optionsTradingLevel: Number(a.options_trading_level ?? 0), optionsBuyingPower: Number(a.options_buying_power ?? 0),
       blocked: a.trading_blocked || a.account_blocked || a.trade_suspended_by_user || a.status !== 'ACTIVE', ts: now };
   }
   async clock(now, priority = 'normal') {
@@ -82,6 +84,12 @@ export class AlpacaBroker {
       if (!crypto) Object.assign(body, { order_class: 'bracket', take_profit: { limit_price: String(intent.target) }, stop_loss: { stop_price: String(intent.stop) } });
     }
     return normalizeOrder(await this.request('/v2/orders', 'POST', body, intent.kind === 'exit' ? 'protection' : 'normal'));
+  }
+  async submitPaperRoute(body) {
+    if (this.cfg.mode !== 'paper' || this.cfg.brokerUrl !== 'https://paper-api.alpaca.markets') throw Object.assign(new Error('paper_routes_forbidden_in_live'), { notSent: true });
+    validatePaperBody(body);
+    const exit = body.type === 'market';
+    return normalizeOrder(await this.request('/v2/orders', 'POST', body, exit ? 'protection' : 'normal'));
   }
   async cancel(order) { if (!order.brokerId) return; await this.request(`/v2/orders/${encodeURIComponent(order.brokerId)}`, 'DELETE', undefined, 'protection'); }
   async activities(cursor, after) {
