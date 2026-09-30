@@ -11,6 +11,15 @@ function clockFixture() {
   return { clock, utc, advance: ms => { elapsed += ms; }, jump: ms => { jump += ms; }, elapsed: () => elapsed };
 }
 
+function suspensionFixture(utc = Date.parse('2026-09-22T15:00:00Z')) {
+  let wall = utc, mono = 0;
+  const clock = new ProviderClock({ wall: () => wall, mono: () => mono });
+  const sample = (offset = 0, rtt = 0) => clock.observe(new Date(wall + offset).toISOString(), mono - rtt, mono);
+  assert.equal(sample(), true);
+  return { clock, sample, wall: () => wall, mono: () => mono,
+    advance: ms => { wall += ms; mono += ms; }, suspend: ms => { wall += ms; } };
+}
+
 test('18-second host lag is calibrated without changing quote timestamps or freshness limits', () => {
   const f = clockFixture();
   assert.equal(f.clock.status().synchronized, false);
@@ -68,4 +77,106 @@ test('an expired clock blocks a candidate even between reconciliations', async (
     assert.ok(f.engine.status().issues.includes('clock_not_synchronized'));
     await f.engine.reconcile(); assert.ok(f.engine.issues.includes('clock_not_synchronized'));
   } finally { f.store.close(); }
+});
+
+test('a 25-hour suspension recovers after two provider reads without weakening quote checks', () => {
+  const f = suspensionFixture(), before = f.clock.now();
+  f.suspend(25 * 3600000);
+  assert.equal(f.clock.status().synchronized, false);
+  assert.equal(f.clock.status().reason, 'clock_elapsed_discontinuity');
+  assert.equal(f.sample(), false);
+  assert.equal(f.clock.status().reason, 'provider_clock_discontinuity');
+  assert.equal(f.clock.now(), before);
+  const current = quote('SPY', f.wall());
+  assert.equal(validateQuote(current, f.clock.now(), 5000), false);
+  f.advance(5000);
+  assert.equal(f.sample(), true);
+  assert.equal(f.clock.status().synchronized, true);
+  assert.equal(f.clock.now(), f.wall());
+  assert.equal(validateQuote(current, f.clock.now(), 5000), true);
+  assert.equal(current.ts, before + 25 * 3600000);
+  assert.equal(validateQuote(quote('SPY', f.wall() - 5001), f.clock.now(), 5000), false);
+  assert.equal(validateQuote(quote('SPY', f.wall() + 1001), f.clock.now(), 5000), false);
+});
+
+test('invalid, slow and host-skewed samples reset recovery confirmation', () => {
+  for (const invalid of [
+    f => f.clock.observe('invalid', f.mono(), f.mono()),
+    f => f.sample(0, 1001),
+    f => f.sample(300001),
+  ]) {
+    const f = suspensionFixture();
+    f.suspend(25 * 3600000);
+    assert.equal(f.sample(), false);
+    f.advance(5000);
+    assert.equal(invalid(f), false);
+    assert.equal(f.clock.status().synchronized, false);
+    f.advance(5000);
+    assert.equal(f.sample(), false);
+    f.advance(5000);
+    assert.equal(f.sample(), true);
+  }
+});
+
+test('recovery requires separated, recent, consistent reads across uninterrupted elapsed time', () => {
+  for (const disrupt of [
+    f => f.sample(), // Same instant is not a second independent observation.
+    f => { f.advance(60001); return f.sample(); },
+    f => { f.advance(5000); return f.sample(3000); },
+    f => { f.advance(5000); f.suspend(10000); return f.sample(); },
+  ]) {
+    const f = suspensionFixture();
+    f.suspend(25 * 3600000);
+    assert.equal(f.sample(), false);
+    assert.equal(disrupt(f), false);
+    assert.equal(f.clock.status().synchronized, false);
+    f.advance(5000);
+    // An inconsistent provider timestamp must itself be replaced before recovery.
+    if (!f.sample()) { f.advance(5000); assert.equal(f.sample(), true); }
+    assert.equal(f.clock.status().synchronized, true);
+    assert.equal(f.clock.now(), f.wall());
+  }
+});
+
+test('backward provider jumps stay blocked and never roll the trading clock back', () => {
+  const f = suspensionFixture(), before = f.clock.now();
+  assert.equal(f.sample(-3000), false);
+  f.advance(5000);
+  assert.equal(f.sample(-3000), false);
+  assert.equal(f.clock.status().synchronized, false);
+  assert.ok(f.clock.now() >= before);
+  assert.equal(f.sample(), true);
+});
+
+test('a wall-clock correction blocks entries until the next valid provider calibration', () => {
+  const f = clockFixture();
+  f.clock.observe(new Date(f.utc + 50).toISOString(), 0, 100);
+  f.jump(18000);
+  assert.equal(f.clock.status().synchronized, false);
+  assert.equal(f.clock.observe(new Date(f.utc + f.elapsed()).toISOString(), f.elapsed()), true);
+  assert.equal(f.clock.status().synchronized, true);
+  assert.equal(f.clock.status().offsetMs, 0);
+});
+
+test('engine blocks entries throughout suspension recovery and reports one clock blocker', async () => {
+  const f = await fixture(), time = suspensionFixture(f.now()), duration = 25 * 3600000;
+  try {
+    f.engine.timebase = time.clock; f.engine.clock = () => time.clock.now();
+    const c = f.prepare();
+    time.suspend(duration);
+    await f.engine.mutex.run(() => f.engine.enter(c));
+    assert.equal(c.reason, 'clock_not_synchronized');
+    assert.equal(f.store.orders().length, 0);
+    await f.engine.reconcile();
+    assert.equal(f.engine.status().entryReady, false);
+    assert.equal(f.engine.status().entryBlockers.filter(x => x === 'clock_not_synchronized').length, 1);
+    assert.equal(time.sample(), false);
+    assert.equal(f.engine.status().entryReady, false);
+    time.advance(5000); f.advance(duration + 5000);
+    assert.equal(time.sample(), true);
+    await f.engine.reconcile();
+    f.prepare('SPY', 'after-recovery');
+    assert.equal(f.engine.status().entryReady, true);
+    assert.equal(f.engine.status().entryBlockers.includes('clock_not_synchronized'), false);
+  } finally { await f.engine.mutex.tail; f.store.close(); }
 });

@@ -16,7 +16,9 @@ Bid, ask, spread and midpoint have separate labels. The midpoint is a reference,
 
 Real-data modes calibrate the trading clock using Alpaca's authenticated HTTPS `/v2/clock` timestamp, then advance it using monotonic elapsed time. This handles a modest host offset without rewriting quote timestamps or weakening the existing stale/future checks. Reconciliation refreshes calibration approximately every five seconds plus API time. The dashboard displays calibration status and offset from the host.
 
-Samples with round-trip time above one second, a host offset over five minutes, invalid timestamps or a discontinuity over one second are rejected. Calibration expires after 60 seconds. New entries are blocked immediately when calibration is unreliable, including between reconciliations. Quote timestamps never calibrate the clock. Keep Windows and the Docker host time synchronized; provider calibration is not a substitute for healthy infrastructure or an HFT timing guarantee.
+Samples with round-trip time above one second, a host offset over five minutes or invalid timestamps are rejected. Calibration expires after 60 seconds; a wall/monotonic elapsed-time disagreement over one second also blocks entries immediately, including between reconciliations after host or Docker suspension. Quote timestamps never calibrate the clock.
+
+A provider jump over one second initially blocks entries. A forward jump can recover automatically after two valid, separate provider reads, spaced 1–60 seconds apart, agree within one second of elapsed time. A rejected or inconsistent sample restarts confirmation. The clock never resets backwards, and quote freshness limits remain unchanged. Normal reconciliation supplies these reads, so no restart is needed after a confirmed forward jump. A persistent backward jump or host skew over five minutes needs investigation and host-time correction before a restart. Keep Windows and the Docker host time synchronized; provider calibration is not a substitute for healthy infrastructure or an HFT timing guarantee.
 
 ## Why keys alone do not show real prices
 

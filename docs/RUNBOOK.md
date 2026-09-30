@@ -25,6 +25,7 @@ Flatten is a workflow, not a promise of an immediate fill. Inspect broker positi
 
 ## Faults
 
+- **clock_not_synchronized:** inspect `diagnostics.clock` in `/api/status`. Host/Docker suspension can interrupt monotonic time; entries stay blocked until two fresh, consistent Alpaca clock reads confirm a forward recalibration. No quote age limits are relaxed. If it persists, check broker connectivity and host time; backward jumps and host skew over five minutes are not automatically accepted. Docker's `/healthz` only checks loop liveness, so a healthy container can still have blocked entries. See [clock calibration](FRONTEND.md#clock-calibration).
 - **unresolved_order:** a network failure may have hidden broker acceptance. Reconciliation searches the same client ID; no automatic second POST occurs. If it remains missing, use the broker's order history and support to establish the outcome. Do not delete the journal or manually free its reservation while uncertain. This conservative condition requires operator investigation if the broker never establishes an outcome.
 - **external_account_activity:** dedicated policy found an external holding/order or inconsistent managed quantity. Restore a matching journal where appropriate, or use the documented shared paper-account policy for unrelated existing holdings. Do not delete the volume.
 - **external_orders_pending:** shared policy found unmatched open orders; inspect and resolve those orders in the broker account. The engine does not cancel them.
