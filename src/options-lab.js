@@ -96,7 +96,7 @@ export class OptionsLab {
       });
       await this.tape.flush();
     } catch (error) {
-      this.error = /^options_[a-z0-9_]+$/.test(error.message) ? error.message : 'options_capture_failed';
+      this.error = error.message === 'broker_request_budget' ? 'options_broker_budget_reserved_for_execution' : /^options_[a-z0-9_]+$/.test(error.message) ? error.message : 'options_capture_failed';
       if (comparison?.active) comparison.error = this.error;
     }
     finally { this.running = false; }

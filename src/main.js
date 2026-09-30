@@ -48,7 +48,12 @@ if(venue) {
   if(cfg.cryptoUniverse==='top25'){engine.cryptoUniverse=new CryptoUniverse(engine,venue);engine.cryptoUniverse.restore();}
   engine.desk=new ResearchDesk(engine);
 }
-engine.optionsLab = new OptionsLab(engine, ['paper', 'shadow'].includes(cfg.mode) ? new OptionsData({...cfg,canRead:()=>engine.schedule?.state().equityTracking??true}) : null);
+engine.optionsLab = new OptionsLab(engine, ['paper', 'shadow'].includes(cfg.mode) ? new OptionsData({...cfg,canRead:()=>engine.schedule?.state().equityTracking??true,
+  providerContext: () => { const clock = timebase.status(), session = engine.schedule.state(); return {
+    now: engine.clock(), synchronized: clock.synchronized && session.calendarFresh, uncertaintyMs: clock.uncertaintyMs,
+    marketOpen: session.regular, calendar: engine.schedule.cache.rows,
+    assets: Object.fromEntries(['SPY','QQQ'].map(s => [s, engine.assets.get(s)])),
+  }; } }) : null);
 const cryptoContext = cfg.mode === 'demo' ? null : new CryptoContext(engine);
 engine.cryptoContext=cryptoContext;
 if (cfg.mode !== 'demo') engine.stockHistory = new StockHistory(engine);

@@ -16,10 +16,11 @@ export const normalizeStockEligibility = (a, at, symbol) => ({ at, status: a.sym
 
 // This adapter has no order/exercise/account mutation endpoint or method.
 export class OptionsData {
-  constructor({ key, secret, fetchFn = fetch, now = Date.now, canRead = () => true }) {
+  constructor({ key, secret, fetchFn = fetch, now = Date.now, canRead = () => true, providerContext = null }) {
     if (!key || !secret) throw new Error('options_credentials_required');
     this.headers = { 'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret };
-    this.fetch = fetchFn; this.localNow = now; this.canRead=canRead; this.offset = 0; this.cache = new Map(); this.assetCache = new Map();
+    this.fetch = fetchFn; this.localNow = now; this.canRead=canRead; this.providerContext = providerContext;
+    this.offset = 0; this.cache = new Map(); this.assetCache = new Map(); this.calendarCache = null;
     this.budget = sharedBrokerBudget({ key, brokerUrl: PAPER }, fetchFn);
   }
   async get(host, path, params = {}) {
@@ -37,20 +38,31 @@ export class OptionsData {
   }
   async capture(universe = ['SPY'], watched = []) {
     if (!universe.length || universe.length > 2 || new Set(universe).size !== universe.length || universe.some(s => !['SPY', 'QQQ'].includes(s))) throw new Error('options_universe');
-    const started = this.localNow(), clock = await this.get(PAPER, '/v2/clock'), received = this.localNow(), provider = Date.parse(clock.timestamp);
+    const started = this.localNow(), shared = this.providerContext?.();
+    if (this.providerContext && (!shared?.synchronized || !Number.isFinite(shared.now) || !(shared.uncertaintyMs >= 0 && shared.uncertaintyMs <= 1000))) throw new Error('options_clock_uncertain');
+    const clock = shared ? { timestamp: new Date(shared.now).toISOString(), is_open: shared.marketOpen } : await this.get(PAPER, '/v2/clock');
+    const received = this.localNow(), provider = Date.parse(clock.timestamp);
     if (!Number.isFinite(provider) || received < started || received - started > 2000 || Math.abs(provider - received) > 300000) throw new Error('options_clock_uncertain');
     this.offset = provider - (started + received) / 2;
-    const now = () => this.localNow() + this.offset, date = nyDate(now());
-    const frame = { schema: 1, source: 'alpaca_opra', stockFeed: 'sip', sampled: true, clockUncertaintyMs: (received - started) / 2,
+    const now = () => this.providerContext ? this.providerContext().now : this.localNow() + this.offset, date = nyDate(now());
+    const frame = { schema: 1, source: 'alpaca_opra', stockFeed: 'sip', sampled: true, clockUncertaintyMs: shared?.uncertaintyMs ?? (received - started) / 2,
       now: now(), universe, marketOpen: clock.is_open === true, session: null, contexts: {}, spots: {}, assets: {}, contracts: {}, quotes: {} };
     if (!frame.marketOpen) return frame;
-    const calendar = await this.get(PAPER, '/v2/calendar', { start: new Date(provider - 130 * DAY).toISOString().slice(0, 10), end: date });
+    const sharedCalendar = shared?.calendar?.filter(r => r.date <= date);
+    const calendar = sharedCalendar?.filter(r => r.date < date).length >= 50 ? sharedCalendar : this.calendarCache?.date === date ? this.calendarCache.rows :
+      await this.get(PAPER, '/v2/calendar', { start: new Date(provider - 130 * DAY).toISOString().slice(0, 10), end: date });
+    if (!Array.isArray(calendar)) throw new Error('options_session_missing');
+    this.calendarCache = { date, rows: calendar };
     const day = calendar.find?.(x => x.date === date);
     if (!day) throw new Error('options_session_missing');
-    frame.session = { date, open: nyTimestamp(date, day.open), close: nyTimestamp(date, day.close) };
+    frame.session = { date, open: Number.isFinite(day.open) ? day.open : nyTimestamp(date, day.open), close: Number.isFinite(day.close) ? day.close : nyTimestamp(date, day.close) };
     const spots = await this.get(DATA, '/v2/stocks/quotes/latest', { symbols: universe.join(','), feed: 'sip' });
     for (const symbol of universe) {
       let asset = this.assetCache.get(symbol);
+      const sharedAsset = shared?.assets?.[symbol];
+      if (sharedAsset && Number.isFinite(sharedAsset.observedAt) && now() >= sharedAsset.observedAt && now() - sharedAsset.observedAt < 900000 && (!asset || asset.at < sharedAsset.observedAt)) {
+        asset = normalizeStockEligibility({ symbol, ...sharedAsset }, sharedAsset.observedAt, symbol); this.assetCache.set(symbol, asset);
+      }
       if (!asset || now() - asset.at > (asset.error ? 60000 : 900000)) {
         try {
           const a = await this.get(PAPER, `/v2/assets/${symbol}`);
@@ -118,6 +130,7 @@ export class OptionsData {
         bid: q?.bp, ask: q?.ap, bidSize: q?.bs, askSize: q?.as, ts: Date.parse(q?.t) };
     }
     frame.now = now();
+    if (this.providerContext && !this.providerContext().synchronized) throw new Error('options_clock_uncertain');
     if (frame.now - provider > OPTIONS_POLICY.pollMs) throw new Error('options_capture_too_slow');
     return frame;
   }

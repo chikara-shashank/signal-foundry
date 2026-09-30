@@ -136,6 +136,22 @@ test('provider borrow-status enum overrides legacy easy-to-borrow flag and unkno
   assert.equal(normalizeStockEligibility(a, start, 'SPY').easyToBorrow, true);
   assert.equal(normalizeStockEligibility(a, start, 'QQQ').status, null);
 });
+test('warm capture reuses authenticated clock, calendar and assets without consuming reserved broker requests', async () => {
+  const f = frame(), date = f.session.date, calls = [];
+  const daily = Array.from({ length: 50 }, (_, i) => ({ t: new Date(start - (50 - i) * 86400000).toISOString().slice(0, 10) + 'T04:00:00Z', o: 100, h: 101, l: 99, c: 100, v: 1000 }));
+  const calendar = [...daily.map(b => ({ date: b.t.slice(0, 10), open: '09:30', close: '16:00' })), { date, open: f.session.open, close: f.session.close }];
+  const shared = { now: start, synchronized: true, uncertaintyMs: 50, marketOpen: true, calendar,
+    assets: { SPY: { observedAt: start, status: 'active', tradable: true, shortable: true, borrow_status: 'easy_to_borrow' } } };
+  const adapter = new OptionsData({ key: 'test', secret: 'test', now: () => start, providerContext: () => shared,
+    fetchFn: async url => { calls.push(url); assert.ok(url.startsWith('https://data.alpaca.markets/')); return { ok: true, json: async () => url.includes('/quotes/latest') ?
+      { quotes: { SPY: { bp: 100.19, ap: 100.21, bs: 100, as: 100, t: new Date(start).toISOString() } } } : { bars: [] } }; } });
+  adapter.cache.set('SPY', { date, ts: start, low: 90, high: 110, daily, contracts: [] });
+  adapter.budget.requests = Array(100).fill(Date.now());
+  const captured = await adapter.capture(['SPY']);
+  assert.equal(captured.assets.SPY.easyToBorrow, true); assert.equal(captured.clockUncertaintyMs, 50); assert.equal(captured.spots.SPY.bid, 100.19);
+  assert.equal(adapter.budget.status().used, 100); assert.equal(calls.length, 3);
+  shared.synchronized = false; await assert.rejects(adapter.capture(['SPY']), /options_clock_uncertain/); assert.equal(calls.length, 3);
+});
 test('dashboard endpoint requires authentication and UI escapes provider text', async () => {
   const { cfg, engine, store } = await fixture(); const server = createDashboard(engine, cfg);
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

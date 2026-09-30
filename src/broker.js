@@ -48,7 +48,9 @@ export class AlpacaBroker {
   async assets() {
     const classes = [...(this.cfg.equities.length || this.cfg.universe?.mode === 'all' ? ['us_equity'] : []), ...(this.cfg.crypto.length || this.cfg.cryptoUniverse === 'top25' ? ['crypto'] : [])];
     const all = (await Promise.all(classes.map(c => this.request(`/v2/assets?status=active&asset_class=${c}`)))).flat();
-    return new Map(all.map(a => [canonical(a.symbol,a.class), { tradable: a.tradable, assetClass: a.class, status: a.status, exchange: a.exchange, name: a.name, min_order_size: Number(a.min_order_size ?? 1), min_trade_increment: Number(a.min_trade_increment ?? 1), price_increment: Number(a.price_increment ?? .01) }]));
+    return new Map(all.map(a => [canonical(a.symbol,a.class), { tradable: a.tradable, assetClass: a.class, status: a.status, exchange: a.exchange, name: a.name,
+      observedAt: this.timebase?.now() ?? Date.now(), shortable: a.shortable, easy_to_borrow: a.easy_to_borrow, borrow_status: a.borrow_status,
+      min_order_size: Number(a.min_order_size ?? 1), min_trade_increment: Number(a.min_trade_increment ?? 1), price_increment: Number(a.price_increment ?? .01) }]));
   }
   // Trading sessions with their actual open and close, including early closes.
   async calendar(start, end) {
