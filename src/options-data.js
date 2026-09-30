@@ -10,18 +10,21 @@ export const normalizeOption = c => ({ symbol: c.symbol, underlying: c.underlyin
   deliverables: c.deliverables });
 export const normalizeOptionQuote = x => ({ bid: x.latestQuote?.bp, ask: x.latestQuote?.ap, bidSize: x.latestQuote?.bs, askSize: x.latestQuote?.as,
   condition: x.latestQuote?.c, ts: Date.parse(x.latestQuote?.t), delta: x.greeks?.delta ?? null, iv: x.impliedVolatility ?? null });
+export const normalizeStockEligibility = (a, at, symbol) => ({ at, status: a.symbol === symbol ? a.status : null,
+  tradable: a.tradable === true, shortable: a.shortable === true,
+  easyToBorrow: a.borrow_status == null ? a.easy_to_borrow === true : a.borrow_status === 'easy_to_borrow' });
 
 // This adapter has no order/exercise/account mutation endpoint or method.
 export class OptionsData {
   constructor({ key, secret, fetchFn = fetch, now = Date.now, canRead = () => true }) {
     if (!key || !secret) throw new Error('options_credentials_required');
     this.headers = { 'APCA-API-KEY-ID': key, 'APCA-API-SECRET-KEY': secret };
-    this.fetch = fetchFn; this.localNow = now; this.canRead=canRead; this.offset = 0; this.cache = new Map();
+    this.fetch = fetchFn; this.localNow = now; this.canRead=canRead; this.offset = 0; this.cache = new Map(); this.assetCache = new Map();
     this.budget = sharedBrokerBudget({ key, brokerUrl: PAPER }, fetchFn);
   }
   async get(host, path, params = {}) {
     if(!this.canRead())throw new Error('options_data_scheduled_off');
-    const approved = host === PAPER ? /^\/v2\/(clock|calendar|options\/contracts)$/.test(path)
+    const approved = host === PAPER ? /^\/v2\/(clock|calendar|options\/contracts|assets\/(SPY|QQQ))$/.test(path)
       : host === DATA && /^\/(v2\/stocks\/(SPY|QQQ)\/bars|v2\/stocks\/quotes\/latest|v1beta1\/options\/snapshots)$/.test(path);
     if (!approved) throw new Error('options_read_only_endpoint');
     if (host === PAPER) this.budget.reserve('GET', 'background');
@@ -35,11 +38,11 @@ export class OptionsData {
   async capture(universe = ['SPY'], watched = []) {
     if (!universe.length || universe.length > 2 || new Set(universe).size !== universe.length || universe.some(s => !['SPY', 'QQQ'].includes(s))) throw new Error('options_universe');
     const started = this.localNow(), clock = await this.get(PAPER, '/v2/clock'), received = this.localNow(), provider = Date.parse(clock.timestamp);
-    if (!Number.isFinite(provider) || received - started > 2000) throw new Error('options_clock_uncertain');
+    if (!Number.isFinite(provider) || received < started || received - started > 2000 || Math.abs(provider - received) > 300000) throw new Error('options_clock_uncertain');
     this.offset = provider - (started + received) / 2;
     const now = () => this.localNow() + this.offset, date = nyDate(now());
     const frame = { schema: 1, source: 'alpaca_opra', stockFeed: 'sip', sampled: true, clockUncertaintyMs: (received - started) / 2,
-      now: now(), universe, marketOpen: clock.is_open === true, session: null, contexts: {}, spots: {}, contracts: {}, quotes: {} };
+      now: now(), universe, marketOpen: clock.is_open === true, session: null, contexts: {}, spots: {}, assets: {}, contracts: {}, quotes: {} };
     if (!frame.marketOpen) return frame;
     const calendar = await this.get(PAPER, '/v2/calendar', { start: new Date(provider - 130 * DAY).toISOString().slice(0, 10), end: date });
     const day = calendar.find?.(x => x.date === date);
@@ -47,6 +50,15 @@ export class OptionsData {
     frame.session = { date, open: nyTimestamp(date, day.open), close: nyTimestamp(date, day.close) };
     const spots = await this.get(DATA, '/v2/stocks/quotes/latest', { symbols: universe.join(','), feed: 'sip' });
     for (const symbol of universe) {
+      let asset = this.assetCache.get(symbol);
+      if (!asset || now() - asset.at > (asset.error ? 60000 : 900000)) {
+        try {
+          const a = await this.get(PAPER, `/v2/assets/${symbol}`);
+          asset = normalizeStockEligibility(a, now(), symbol);
+        } catch { asset = { at: now(), error: 'asset_eligibility_unavailable' }; }
+        this.assetCache.set(symbol, asset);
+      }
+      frame.assets[symbol] = asset;
       const stock = spots.quotes?.[symbol];
       if (!(stock?.bp > 0 && stock.ap >= stock.bp)) throw new Error('options_underlying_quote');
       const price = (stock.bp + stock.ap) / 2;
@@ -102,7 +114,8 @@ export class OptionsData {
     const freshSpots = await this.get(DATA, '/v2/stocks/quotes/latest', { symbols: universe.join(','), feed: 'sip' });
     for (const symbol of universe) {
       const q = freshSpots.quotes?.[symbol];
-      frame.spots[symbol] = { price: q?.bp > 0 && q.ap >= q.bp ? (q.bp + q.ap) / 2 : null, ts: Date.parse(q?.t) };
+      frame.spots[symbol] = { price: q?.bp > 0 && q.ap >= q.bp ? (q.bp + q.ap) / 2 : null,
+        bid: q?.bp, ask: q?.ap, bidSize: q?.bs, askSize: q?.as, ts: Date.parse(q?.t) };
     }
     frame.now = now();
     if (frame.now - provider > OPTIONS_POLICY.pollMs) throw new Error('options_capture_too_slow');

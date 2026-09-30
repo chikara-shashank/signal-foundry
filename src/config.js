@@ -56,6 +56,8 @@ export function config(env = process.env) {
     sessions: num('OVERNIGHT_MAX_SESSIONS', 3, 1, 10) };
   if (!['on','off'].includes(str('OVERNIGHT_ENTRIES', ['paper','shadow'].includes(c.mode) ? 'on' : 'off')) || !Number.isInteger(c.overnight.sessions)) throw new Error('Invalid overnight policy');
   c.desk = { enabled:c.mode!=='demo', newsPollMs:900000, maxModelCallsPerDay:24, closeScanDelayMs:120000 };
+  c.tradeAlternatives = str('TRADE_ALTERNATIVES', ['paper','shadow'].includes(c.mode) ? 'shadow' : 'off');
+  if (!['off','shadow'].includes(c.tradeAlternatives) || (c.tradeAlternatives === 'shadow' && !['paper','shadow'].includes(c.mode))) throw new Error('Trade alternatives require paper/shadow mode');
   c.researchContext = {
     mode: str('RESEARCH_CONTEXT_MODE', ['paper','shadow'].includes(c.mode) ? 'shadow' : 'off'),
     maxCallsPerDay: num('RESEARCH_CONTEXT_DAILY_CALLS', 8, 0, 24),

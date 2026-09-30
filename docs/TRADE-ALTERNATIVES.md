@@ -1,0 +1,33 @@
+# Direction and instrument comparisons
+
+`TRADE_ALTERNATIVES=shadow` is the default in paper/shadow mode (off in demo/live). This records prospective SPY/QQQ comparisons in **Research → Trade alternatives** and authenticated `GET /api/trade-alternatives`. It has no broker reference, no submission endpoint, no automatic promotion, and does not increase trading limits or paid Jev calls. Set it to `off` to stop collection. Live mode rejects enabling it.
+
+Each fresh completed five-minute context can start one observation per symbol. No second observation starts while that symbol has pending/open alternatives. All alternatives share the observation time and a maximum 30-minute holding horizon measured from that time. Entries stop sufficiently before the close to allow the horizon, pending expiration, exit observation and five-minute buffer. These are alternative hypothetical paths, not simultaneous portfolio positions.
+
+## Frozen hypotheses
+
+- **Stock long:** completed five-minute close above the first 30-minute high and session VWAP; the current quote must still confirm. Stop at the opening-range low, target at two times initial price risk.
+- **Stock short:** independently confirmed close below the first 30-minute low and VWAP, with current quote confirmation. Stop at the opening-range high, target at two times price risk. Fresh asset metadata must say active, tradable, shortable and easy to borrow. Unknown and hard-to-borrow assets are unavailable. This assumes no ETB borrow charge; actual locate availability, recall and future broker eligibility require separate validation. [Alpaca short-selling documentation](https://docs.alpaca.markets/us/docs/margin-and-short-selling).
+- **Call/put debit, put/call credit, iron condor:** the existing frozen OPRA/SIP selectors and bounded standard-contract geometry. In this experiment all use the common 30-minute horizon. In particular, the separate multi-day credit-spread experiment's results cannot be inherited here.
+- **Long volatility:** unavailable until a forward volatility forecast can be compared with option prices and costs. Movement alone does not establish an edge over the premium paid, time decay and volatility changes. [OIC long straddle](https://www.optionseducation.org/strategies/all-strategies/long-straddle).
+- **No trade:** zero hypothetical cash P/L and zero exposure over the same observation; not a total-return benchmark.
+
+Jev's existing long-only assessment is never copied to bearish or option alternatives. Independent direction/structure review remains required before execution can be considered. Classification confidence is not a probability of profit.
+
+## Costs, evidence and gaps
+
+Research sizing is capped at $100 planned risk per alternative and $5,000 stock notional. Stock stop risk and bounded option expiry payoff are different risk measures; neither establishes a guaranteed executable liquidation price. Stocks use whole shares bounded by displayed size, cross bid/ask, incur 3 bps adverse slippage per side and 1 bp fees per side. Options retain the frozen one-contract-per-leg policy, $0.10 fees per contract per side and $0.01 adverse slippage per leg per side. These are assumptions, not a broker fee quote. No zero-cost or midpoint fills are credited.
+
+The decision is recorded before entry. Every entry quote must arrive at least one second after the decision, be fresh, and meet the original limit without chasing. Pending attempts expire after 90 seconds. Stops/targets/horizon request an exit; a subsequent fresh observation at least one second later supplies the simulated exit. Gaps can exceed the planned stock stop loss. Option marks require all legs, but simultaneous quotes do not prove a package fill, assignment safety or actual market capacity.
+
+Capture gaps or missing position quotes longer than 90 seconds, invalid clocks, session closure and process restarts invalidate active observations with **incomplete / unknown P/L**. Unfilled and incomplete attempts are reported separately. Closed results alone are not enough: missingness and fill assumptions can bias comparisons. Thirty-second sampling can miss intraperiod stops and targets. There is no claim of profitability.
+
+The code and policy fingerprint creates a separate experiment ledger. Counts and matched-pair statistics accumulate across the current experiment; the last 200 decision groups are retained for the dashboard detail view. Each decision/fill/exit/outcome updates a durable `tradeAlternatives:<fingerprint>:cohort:<id>` SQLite KV record containing decision context, eligibility metadata, quantities, original limits, risk assumptions, observed entry/exit quotes and net costs. These records survive rolling-view retention and normal event pruning. Earlier experiment ledgers remain preserved. A code change never migrates or promotes old results. SQLite backups include these records.
+
+Compare only alternatives that closed within the same decision group, with the no-trade baseline alongside. Route totals cover different samples and cannot rank strategies. Minimum review inputs are 100 matched outcomes across 60 sessions plus missingness analysis, stress costs, a separate holdout, execution/assignment validation and drawdown review. These counts do not automatically validate any route. All recorded comparisons remain shadow research regardless of outcome.
+
+## Operations and verification
+
+Data collection shares the existing bounded options capture and broker background-request budget, with two cached asset-eligibility reads per 15 minutes. Pausing the engine stops new comparison decisions while existing shadow observations finish. Unavailable OPRA/SIP data blocks comparisons. A changed Options Lab fingerprint preserves its previous ledger and requires its existing explicit migration; comparisons can collect independently without changing that ledger or switches.
+
+Run `node --test test/trade-alternatives.test.js` on the pinned Node runtime. Tests cover independent directions, borrow eligibility, later quotes and frozen limits, short-side gap losses and costs, matched outcomes, missing data, restart invalidation, durable records, Options Lab isolation, configuration, API authentication and HTML escaping.

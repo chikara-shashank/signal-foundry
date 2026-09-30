@@ -70,23 +70,35 @@ export class OptionsLab {
   }
   async poll() {
     if (this.engine.schedule && !this.engine.schedule.state().equityTracking) return;
-    if (this.running || this.unavailable() || Date.now() - this.lastPoll < P.pollMs || (!Object.values(this.state.enabled).some(Boolean) && !this.state.positions.length && !this.state.pending.length)) return;
+    const comparison = this.engine.tradeAlternatives, labActive = !this.unavailable() &&
+      (Object.values(this.state.enabled).some(Boolean) || this.state.positions.length || this.state.pending.length);
+    if (this.running || !this.adapter || (!labActive && !comparison?.active) || Date.now() - this.lastPoll < P.pollMs) return;
     this.running = true; this.lastPoll = Date.now(); const revision = this.state.revision;
     try {
-      const watched = [...this.state.positions, ...this.state.pending].flatMap(p => optionLegs(p).map(l=>l.contract));
+      const watched = [...(labActive ? [...this.state.positions, ...this.state.pending].flatMap(p => optionLegs(p).map(l=>l.contract)) : []), ...(comparison?.active ? comparison.watched() : [])];
       const frame = await this.adapter.capture(['SPY', 'QQQ'], watched), e = this.engine;
       if (e.stopped) return;
       if (e.schedule && !e.schedule.state().equityTracking) return;
       await e.mutex.run(async () => {
         if (e.stopped) return;
         e.store.assertLease();
-        const allowNew = revision === this.state.revision && !e.operatorPause && !this.tape.error, next = structuredClone(this.state);
-        advanceOptions(next, frame, allowNew);
-        const checkpoint = !this.state.lastAt || e.store.get('optionsTapeHead')?.date !== frame.session?.date || !e.store.get('optionsTapeHead');
-        e.store.saveOptionsFrame(optionsRecord(this.state, frame, allowNew, checkpoint),next);this.state=next;this.error=null;
+        if (labActive) {
+          const allowNew = revision === this.state.revision && !e.operatorPause && !this.tape.error, next = structuredClone(this.state);
+          advanceOptions(next, frame, allowNew);
+          const checkpoint = !this.state.lastAt || e.store.get('optionsTapeHead')?.date !== frame.session?.date || !e.store.get('optionsTapeHead');
+          e.store.saveOptionsFrame(optionsRecord(this.state, frame, allowNew, checkpoint),next);this.state=next;
+        }
+        if (comparison?.active) {
+          try { comparison.observe(frame, !e.operatorPause); }
+          catch { comparison.error = 'comparison_record_failed'; }
+        }
+        this.error=null;
       });
       await this.tape.flush();
-    } catch (error) { this.error = /^options_[a-z0-9_]+$/.test(error.message) ? error.message : 'options_capture_failed'; }
+    } catch (error) {
+      this.error = /^options_[a-z0-9_]+$/.test(error.message) ? error.message : 'options_capture_failed';
+      if (comparison?.active) comparison.error = this.error;
+    }
     finally { this.running = false; }
   }
 }

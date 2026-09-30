@@ -15,6 +15,7 @@ import { strategyManifest, qualification } from './strategy-manifest.js';
 import { Accounting } from './accounting.js';
 import { CryptoQuoteWaits } from './crypto-quote-waits.js';
 import { ResearchContext } from './research-context.js';
+import { TradeAlternatives } from './trade-alternatives.js';
 import { RiskLevels } from './risk-levels.js';
 import { RELEASE } from './release.js';
 import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
@@ -56,6 +57,7 @@ export class Engine {
     this.riskLevels = new RiskLevels(this);
     this.accounting = new Accounting(this);
     this.researchContext = new ResearchContext(this);
+    this.tradeAlternatives = new TradeAlternatives(cfg, store);
   }
   async init() {
     this.store.lease(Date.now());

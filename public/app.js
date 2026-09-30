@@ -14,6 +14,7 @@ import { OptionsLabView } from './options-lab.js';
 import { DiscoveryView } from './discovery.js';
 import { TradePerformanceView } from './trade-performance.js';
 import { SessionResearchView } from './session-research.js';
+import { TradeAlternativesView } from './trade-alternatives.js';
 import { $, money, number, quotePrice, time, escape, label } from './dashboard-format.js';
 let token = '', busy = false, selectedSymbol = '', selectedInterval = 1, latestStatus = null, latestChart = null, chartSequence = 0, selectedEvent = null, session = 0;
 async function api(path, body) {
@@ -32,6 +33,7 @@ const strategyControls = new StrategyControlsView(api);
 const optionsLab = new OptionsLabView(api);
 const discovery = new DiscoveryView();
 const sessionResearch = new SessionResearchView(api);
+const tradeAlternatives = new TradeAlternativesView(api);
 const tradePerformance = new TradePerformanceView(api);
 const controls = new DashboardControls(api, refresh, () => selectedSymbol, () => { accountPerformance.last = 0; });
 const tabs = new DashboardTabs(() => {
@@ -138,6 +140,7 @@ async function refresh() {
     await Promise.all([
       tabs.active === 'live' && refreshChart(),
       tabs.active === 'research' && sessionResearch.refresh(),
+      tabs.active === 'research' && tradeAlternatives.refresh(),
       ['live', 'performance'].includes(tabs.active) && accountPerformance.refresh(),
       ['live', 'performance'].includes(tabs.active) && tradePerformance.refresh(),
       tabs.active === 'performance' && researchResults.refresh(),
@@ -146,11 +149,11 @@ async function refresh() {
       ['operations', 'strategies', 'logs'].includes(tabs.active) && operations.refresh(s, selectedSymbol, tabs.active),
       tabs.active === 'logs' && jevLog.refresh(s),
     ]);
-  } catch (e) { if (generation !== session) return; tradePerformance.disconnect(); sessionResearch.disconnect(); $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; $('live-state').textContent = $('state-text').textContent; live.stop(); }
+  } catch (e) { if (generation !== session) return; tradePerformance.disconnect(); sessionResearch.disconnect(); tradeAlternatives.disconnect(); $('login-error').textContent = e.message; $('state-text').textContent = `Dashboard disconnected: ${e.message}`; $('live-state').textContent = $('state-text').textContent; live.stop(); }
   finally { busy = false; if (refreshPending) { refreshPending = false; void refresh(); } }
 }
 $('login-form').addEventListener('submit', e => { e.preventDefault(); session++; token = $('token').value.trim(); $('token').value = ''; if (busy) refreshPending = true; void refresh(); });
-$('disconnect').addEventListener('click', () => { session++; token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; controls.clear(); chart.clear(); accountPerformance.clear(); researchResults.clear(); tradePerformance.clear(); sessionResearch.clear(); operations.clear(); jevLog.clear(); strategyControls.clear(); optionsLab.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
+$('disconnect').addEventListener('click', () => { session++; token = ''; live.stop(); chartSequence++; latestStatus = null; latestChart = null; controls.clear(); chart.clear(); accountPerformance.clear(); researchResults.clear(); tradePerformance.clear(); sessionResearch.clear(); tradeAlternatives.clear(); operations.clear(); jevLog.clear(); strategyControls.clear(); optionsLab.clear(); $('main').hidden = true; $('login').hidden = false; $('mode').textContent = 'CONNECT'; });
 $('chart-symbol').addEventListener('change', () => { selectedSymbol = $('chart-symbol').value; live.stop(); latestChart = null; selectedEvent = null; $('trade-detail').innerHTML = '<p>Select a signal, order, or fill.</p>'; chart.clear(); void refreshChart(); });
 document.querySelectorAll('[data-interval]').forEach(b => b.addEventListener('click', () => { selectedInterval = b.dataset.interval.endsWith('s') ? b.dataset.interval : Number(b.dataset.interval); live.stop(); latestChart = null; chart.clear(); document.querySelectorAll('[data-interval]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); void refreshChart(); }));
 $('chart-signals').addEventListener('change', e => { chart.showSignals = e.target.checked; chart.draw(); });

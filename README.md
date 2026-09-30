@@ -184,3 +184,7 @@ The [round-two research review](docs/RESEARCH-ROUND2-2026-09-25.md) covers suppo
 `iron_condor` is a default-off Options lab hypothesis. All four standard same-expiry legs must have synchronized executable quotes, sufficient liquidity and bounded aggregate risk. It retains the $100 position / $200 total shadow risk limits. Fees, stressed costs, later-quote fills, assignment exposure checks, recorded legs and deterministic replay now account for every leg. It is not an executable broker options strategy or a reproduction of Cboe CNDR returns.
 
 Run `npm run research:monthly` for normalized monthly signals and buy-and-hold comparisons; `npm run research:monthly:funded` for the separate five-minute isolated-sleeve approximation. Initial downloads need Alpaca credentials; subsequent runs use the local cache. `npm run research:options:benchmarks` includes PUT, BXM and CNDR. Research output never automatically enables a strategy, raises a risk limit or grants live qualification.
+
+## Direction and instrument comparisons
+
+The Research tab now records prospective SPY/QQQ stock-long, eligible stock-short, options-spread and no-trade alternatives from the same observation. `TRADE_ALTERNATIVES` defaults to `shadow` in paper/shadow mode, with later-quote fills, fees, slippage, explicit missing outcomes and matched comparisons. This collector never submits orders or reuses a long Jev approval for another direction. See the [frozen hypotheses, limits and validation requirements](docs/TRADE-ALTERNATIVES.md).
