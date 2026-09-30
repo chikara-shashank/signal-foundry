@@ -22,6 +22,19 @@ function setup(f){
   return articles;
 }
 
+test('fractional provider time cannot break candidate processing at a coverage transition',async()=>{
+  const f=await fixture();try{
+    setup(f);f.engine.desk.currentView=()=>null;f.advance(.375);f.engine.operatorPause=true;
+    const c=f.prepare();f.store.db.prepare('DELETE FROM candidates').run();
+    await f.engine.submitCandidate(c);
+    assert.equal(c.reason,'entries_paused');assert.equal(f.engine.researchContext.journal.latestCoverage().at,Math.ceil(f.now()));
+    f.engine.desk.state.newsComplete=false;f.advance(1.25);f.engine.researchContext.reference('SPY');
+    assert.deepEqual({...f.engine.researchContext.journal.latestCoverage()},{at:Math.ceil(f.now()),available:0});
+    assert.equal(f.store.events(100).some(e=>e.type==='fault'),false);
+    assert.throws(()=>f.engine.researchContext.journal.coverage(NaN,false),/time_invalid/);
+  }finally{await dispose(f);}
+});
+
 test('evidence freezes source versions, managed portfolio and availability; future facts are excluded',async()=>{
   const f=await fixture();try{
     const a=article(f.now()),e=researchEvidence(f.engine,'SPY',[a],f.now());assert.equal(validateEvidence(e),e);

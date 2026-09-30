@@ -23,6 +23,11 @@ export class ResearchJournal {
   invalidate(id,at,reason) { this.store.db.prepare('INSERT OR IGNORE INTO research_invalidations VALUES(?,?,?)').run(id,at,reason); }
   invalidations() { return this.store.db.prepare('SELECT record_id recordId,at,reason FROM research_invalidations').all(); }
   request(id,at,stage,evidenceId) { this.store.db.prepare('INSERT INTO research_calls VALUES(?,?,?,?)').run(id,at,stage,evidenceId); }
-  coverage(at,available) { this.store.db.prepare('INSERT INTO research_coverage VALUES(?,?) ON CONFLICT(at) DO UPDATE SET available=excluded.available').run(at,Number(available)); }
+  coverage(at,available) {
+    // Provider time includes fractional milliseconds; SQLite rowid keys require
+    // integers. Round up so coverage is never recorded before it was observed.
+    if (!Number.isFinite(at) || !Number.isSafeInteger(Math.ceil(at))) throw new Error('research_coverage_time_invalid');
+    this.store.db.prepare('INSERT INTO research_coverage VALUES(?,?) ON CONFLICT(at) DO UPDATE SET available=excluded.available').run(Math.ceil(at),Number(available));
+  }
   latestCoverage() { return this.store.db.prepare('SELECT at,available FROM research_coverage ORDER BY at DESC LIMIT 1').get()??null; }
 }
