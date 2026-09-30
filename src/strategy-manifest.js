@@ -4,7 +4,7 @@ import { strategyDefinition } from './strategy-registry.js';
 import { ADD_POLICY } from './pyramiding.js';
 
 const source = name => readFileSync(new URL(name, import.meta.url), 'utf8').replaceAll('\r\n','\n');
-const researchHash = hash(['jev.js','jev-context.js','research-evidence.js','research-model.js','research-context.js','research-journal.js'].map(name=>[name,source(name)]));
+const researchHash = hash(['jev.js','jev-context.js','jev-entry-gate.js','research-evidence.js','research-model.js','research-context.js','research-journal.js'].map(name=>[name,source(name)]));
 export const codeHash = hash(['risk-levels.js','strategy-setups.js','strategies.js','features.js','microstructure.js','noise-area.js','session-signals.js','vwap-trend.js','monthly-trend.js','daily-history.js','risk.js','engine.js','strategy-manifest.js','strategy-controls.js','strategy-registry.js','portfolio.js','broker.js','broker-budget.js','workers.js','breakout-exits.js','equity-universe.js','feeds.js','stock-history.js','pyramiding.js','position-book.js','market-schedule.js','crypto-universe.js','news-analysis.js','overnight-policy.js','research-desk.js','config.js','crypto-context.js','crypto-quote-waits.js','util.js'].map(name=>[name,source(name)]));
 export function strategyManifest(engine, id) {
   const definition = strategyDefinition(id), c = engine.cfg;

@@ -8,6 +8,7 @@ const setups = {
   volatility_expansion: 'Long breakout as prior compression gives way to increased volatility and volume. Excessive shock volatility is excluded by code.',
   order_flow_continuation: 'Long continuation when recent best-quote size and price changes indicate buying pressure, supported by upward intraday context. This is a top-of-book proxy, not a full order book or queue-position model.',
 };
+export const supportsJevEntry = c => Object.hasOwn(setups, c.strategy) && !c.addition;
 const number = x => typeof x === 'number' && Number.isFinite(x);
 const direction = x => !number(x) ? 'unknown' : x > 0 ? 'rising' : x < 0 ? 'falling' : 'flat';
 const relative = (a, b) => !number(a) || !number(b) ? 'unknown' : a > b ? 'above' : a < b ? 'below' : 'equal';

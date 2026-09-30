@@ -2,6 +2,8 @@
 
 The Strategies tab now supports [broker-paper SPY/QQQ stock shorts and one-contract call/put debit spreads](docs/PAPER-ROUTES.md), with a separate signed-position journal, bounded initial allocation, shared loss controls and restart reconciliation. The feature defaults off and cannot send live-money orders. Paper execution does not establish a profitable edge.
 
+`JEV_MODE=filter` requires a successful, timely Jev review for the exact candidate before reserving any new entry. Orders retain the approval trace. Missing, failed, expired, changed-candidate and shadow-only reviews cannot authorize entry. Session strategies, additions, connectivity tests and paper short/options routes currently lack an applicable review and remain blocked in filter mode. Protective exits never require model approval. `shadow` records reviews without veto power; `off` does not call Jev. The local deployment is configured separately in `.env`.
+
 [Sourced research and recorded-policy comparison](docs/SOURCED-RESEARCH.md) add immutable Alpaca-news evidence, a typed thesis, one opposing-case review and a read-only dashboard panel under Research. New research is shadow-only; existing strategy decisions and risk limits remain authoritative. `research:export` exports durable decisions and costs; `research:compare` compares rules, recorded Jev, context, and context plus critic on the same executable-price tape. No profitable edge is established.
 
 Version 1.18.1 repairs [crypto quote timing](docs/CRYPTO-QUOTE-WAITS.md). Signals can wait for a fresh quote within their original deadline, then repeat every entry check. Live shows waiting, expiry, spread and cost counts. Fees and risk limits are unchanged.

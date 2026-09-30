@@ -17,6 +17,7 @@ import { CryptoQuoteWaits } from './crypto-quote-waits.js';
 import { ResearchContext } from './research-context.js';
 import { TradeAlternatives } from './trade-alternatives.js';
 import { PaperRoutes } from './paper-routes.js';
+import { jevEntryGate } from './jev-entry-gate.js';
 import { RiskLevels } from './risk-levels.js';
 import { RELEASE } from './release.js';
 import { breakoutPolicy, observeBreakout, breakoutInvalidated } from './breakout-exits.js';
@@ -318,7 +319,7 @@ export class Engine {
     this.reject(c, 'engine_stopped');
   }
   // Engine-thread session strategies share every entry check with the bar strategies.
-  // Jev is not consulted: its rubric defines no setup for them.
+  // These setups have no Jev rubric; filter mode must fail closed.
   async submitCandidate(c) {
     c.strategyGeneration ??= this.strategyControls.generation(c.strategy);
     c.config = this.cfg.fingerprint;
@@ -331,6 +332,7 @@ export class Engine {
     this.realtime.eventVersion++;
     if (!preflight.ok) return this.reject(c, preflight.reason);
     if(c.addition && this.cfg.jevMode==='filter')return this.reject(c,'addition_model_filter_not_validated');
+    if(this.cfg.jevMode==='filter')return this.reject(c,'jev_setup_review_required');
     await this.mutex.run(() => this.enter(c));
   }
   reject(c, reason) { c.status = 'rejected'; c.reason = reason; this.store.updateCandidate(c); this.observability.rejected(c); }
@@ -397,9 +399,12 @@ export class Engine {
     this.store.assertLease();
     const decision = this.checkEntry(c);
     if (!decision.ok) return this.reject(c, decision.reason);
+    const review = jevEntryGate(this, c);
+    if (!review.ok) return this.reject(c, review.reason);
     const now = this.clock();
     const o = { id: idFor('e', [this.cfg.mode, this.account.id, c.id]), symbol: c.symbol, kind: 'entry', candidateId: c.id, strategy: c.strategy,
       experiment: c.addition ? this.store.getOrder(c.campaignId).experiment : strategyManifest(this, c.strategy),
+      ...(review.approval ? { jevApproval: review.approval } : {}),
       ...(c.addition ? {campaignId:c.campaignId,addition:true} : {addPolicy:isCrypto(c.symbol)?null:additionPolicy(this,c.strategy)}),
       exitPolicy: breakoutPolicy(c, this.cfg), discovery: isCrypto(c.symbol)?{source:'CoinPaprika',at:this.cryptoUniverse?.state.at??null,row:this.cryptoUniverse?.state.rows.find(r=>r.symbol===c.symbol)??null}:this.universe?.selection(c.symbol) ?? null,
       ...(c.holdingPolicy?{holdingPolicy:structuredClone(c.holdingPolicy)}:{}),

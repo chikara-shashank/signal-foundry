@@ -41,10 +41,12 @@ export class PaperRoutes {
   snapshot() {
     return { enabled: this.enabled(), available: this.paperOnly(), revision: this.state.revision, paperOnly: true, policy: P, stats: this.stats,
       lastReconcile: this.lastReconcile, lastDecision: this.lastDecision, trades: this.state.trades.slice(-20).reverse(),
-      note: 'Broker-paper executions, separate from shadow comparisons. Independent directional rules; Jev is not consulted. One active route; stock shorts and one-contract debit verticals only. Options exits require this service. No live execution or automatic sizing promotion.' };
+      entryGate: this.engine.cfg.jevMode === 'filter' ? 'jev_route_review_required' : null,
+      note: 'Broker-paper executions, separate from shadow comparisons. These routes have no direction/structure-specific Jev review yet, so Jev filter mode blocks new entries. Owned exits remain managed. One active route; stock shorts and one-contract debit verticals only. Options exits require this service. No live execution or automatic sizing promotion.' };
   }
   async send(t, body, kind) {
     if (!this.paperOnly()) throw new Error('paper_routes_forbidden_in_live');
+    if (kind === 'entry' && this.engine.cfg.jevMode === 'filter') throw new Error('jev_route_review_required');
     const id = 'sf-pr-' + hash([t.id, kind, t.orders.length]).slice(0,24);
     const o = { id, body: validatePaperBody({ ...body, client_order_id: id }), kind, ts: this.engine.clock(), status: 'submitting', filledQty: 0, legs: [] };
     t.orders.push(o); this.save('submitting', { tradeId: t.id, order: o });
@@ -64,6 +66,7 @@ export class PaperRoutes {
   entryBlock(f) {
     const e = this.engine, now = e.clock(), a = e.account;
     if (!this.enabled()) return 'disabled';
+    if (e.cfg.jevMode === 'filter') return 'jev_route_review_required';
     if (!e.ready || e.stopped || e.operatorPause || !this.stats.valid || now - this.lastReconcile > 15000) return 'engine_not_ready';
     if (!a || a.blocked || now - a.ts > 15000 || e.timebase && !e.timebase.status().synchronized) return 'account_or_clock_unavailable';
     if (e.store.get(e.lossHaltKey(now), false) || e.riskLevels.halted() || e.store.get(`paperRouteHalt:${nyDate(now)}`, false)) return 'loss_limit';

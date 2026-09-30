@@ -58,6 +58,20 @@ test('paper account capability checks prevent unsupported shorts and spreads', a
   try { f.engine.account.shortingEnabled = false; f.engine.account.optionsTradingLevel = 2; await f.capture(true); assert.equal(f.calls(), 0); }
   finally { await f.close(); }
 });
+test('Jev filter blocks independent route entries at observation and submission boundaries',async()=>{
+  const f=await setup();try{
+    f.cfg.jevMode='filter';await f.capture(true);await f.capture(false);assert.equal(f.calls(),0);
+    assert.equal(f.engine.paperRoutes.lastDecision.reason,'jev_route_review_required');
+    await assert.rejects(f.engine.paperRoutes.send({}, {}, 'entry'),/jev_route_review_required/);
+  }finally{await f.close();}
+});
+test('enabling Jev filter never blocks protective exits for already owned routes',async()=>{
+  const f=await setup();try{
+    await f.capture(false);const t=f.engine.paperRoutes.active()[0];f.fill(f.routes.get(t.orders[0].id),[1.5,1]);await f.engine.reconcile();
+    f.cfg.jevMode='filter';await f.engine.control('flatten');await f.engine.reconcile();
+    assert.equal(t.orders.length,2);assert.equal(t.orders[1].kind,'exit');
+  }finally{await f.close();}
+});
 test('short sells first, shares global capital, then buys only the reconciled quantity to close', async () => {
   const f = await setup();
   try {
